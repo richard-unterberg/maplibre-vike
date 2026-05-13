@@ -6,6 +6,7 @@ const LayoutSize = {
   sm: 'sm',
   md: 'md',
   lg: 'lg',
+  full: 'full',
 } as const
 type LayoutSize = (typeof LayoutSize)[keyof typeof LayoutSize]
 
@@ -15,6 +16,7 @@ const layoutComponentSizeMapping = {
   sm: 'max-w-[1000px]',
   md: 'max-w-[1480px]',
   lg: 'max-w-[1800px]',
+  full: 'max-w-none',
 } as const
 
 interface LayoutComponentProps {
@@ -23,12 +25,12 @@ interface LayoutComponentProps {
 }
 
 const LayoutComponent = cm.div.variants<LayoutComponentProps>({
-  base: ({ $noGrow }) => `${!$noGrow && 'm-auto w-full'}`,
+  base: ({ $noGrow }) => `px-4 ${$noGrow ? '' : 'mx-auto w-full'} relative`,
   variants: {
     $size: layoutComponentSizeMapping,
   },
   defaultVariants: {
-    $size: LayoutSize.lg,
+    $size: LayoutSize.full,
   },
 })
 
