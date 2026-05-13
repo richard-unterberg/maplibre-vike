@@ -1,16 +1,23 @@
 {
   "compilerOptions": {
     "strict": true,
-    "target": "ES2022",
-    "module": "ES2022",
-    "moduleResolution": "Bundler",
+    "target": "ESNext",
+    "module": "ESNext",
+    "allowJs": true,
+    "moduleResolution": "bundler",
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "types": ["vite/client", "vike-react"],
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "react"
+    "jsxImportSource": "react",
+    "paths": {
+      "@/pages/*": ["./pages/*"],
+      "@/components/*": ["./components/*"],
+      "@/styles/*": ["./styles/*"],
+      "@/root/*": ["./*"]
+    }
   },
   "exclude": ["dist"]
 }
