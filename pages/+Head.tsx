@@ -1,1 +1,3 @@
-export const Head = () => null
+import ThemeBootstrap from '@/components/ThemeBootstrap'
+
+export const Head = () => <ThemeBootstrap />

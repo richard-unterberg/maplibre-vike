@@ -3,7 +3,7 @@
   [data-theme='maplibre-vike-dark'] *
 ));
 
-@plugin 'daisyui' {
+@plugin 'daisyui/theme' {
   name: 'maplibre-vike-light';
   default: true;
   prefersdark: false;
@@ -38,7 +38,7 @@
   --noise: 1;
 }
 
-@plugin 'daisyui' {
+@plugin 'daisyui/theme' {
   name: 'maplibre-vike-dark';
   default: false;
   prefersdark: false;
