@@ -1,15 +1,13 @@
-import type { Config } from "vike/types";
-import vikeReact from "vike-react/config";
-
-// Default config (can be overridden by pages)
-// https://vike.dev/config
+import type { Config } from 'vike/types'
+import vikeReact from 'vike-react/config'
 
 const config: Config = {
-  // https://vike.dev/head-tags
-  title: "My Vike App",
-  description: "Demo showcasing Vike",
-
+  title: 'maplibre-vike',
+  prerender: true,
   extends: [vikeReact],
-};
+  htmlAttributes: {
+    'data-theme': 'maplibre-vike-light',
+  },
+}
 
-export default config;
+export default config

@@ -1,65 +1,68 @@
 {
-  "overrides": [
-    {
-      "includes": [
-        "**/+data.ts",
-        "**/+data.js"
-      ],
-      "linter": {
-        "rules": {
-          "correctness": {
-            "useHookAtTopLevel": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": [
-        "**/*.css"
-      ],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noUnknownAtRules": "off"
-          }
-        }
-      }
-    }
-  ],
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
-    }
-  },
-  "files": {
-    "includes": [
-      "**",
-      "!*.cjs",
-      "!*.js",
-      "!*.mjs",
-      "!*.spec.ts",
-      "!**/*.ts.build-*.mjs",
-      "!dist/*",
-      "!node_modules/*",
-      "!**/.DS_Store"
-    ]
-  },
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "files": {
+    "includes": ["**", "!dist"]
+  },
   "formatter": {
+    "indentWidth": 2,
     "indentStyle": "space"
+  },
+  "javascript": {
+    "formatter": {
+      "semicolons": "asNeeded",
+      "lineWidth": 120,
+      "quoteStyle": "single",
+      "trailingCommas": "all"
+    }
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
-    },
-    "domains": {
-      "react": "recommended"
+      "recommended": true,
+      "style": {
+        "useLiteralEnumMembers": "off"
+      },
+      "correctness": {
+        "noUnusedImports": "warn",
+        "noUnusedVariables": "warn",
+        "noUnusedFunctionParameters": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "info"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "warn",
+        "noTemplateCurlyInString": "info"
+      },
+      "complexity": {
+        "noImportantStyles": "off"
+      },
+      "nursery": {
+        "noInlineStyles": "warn"
+      }
     }
   },
   "vcs": {
     "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
-  }
+    "clientKind": "git"
+  },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    },
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "overrides": [
+    {
+      "linter": {
+        "rules": {
+          "security": {
+            "noDangerouslySetInnerHtml": "off"
+          }
+        }
+      }
+    }
+  ]
 }

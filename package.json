@@ -3,10 +3,15 @@
     "dev": "vike dev",
     "build": "vike build",
     "preview": "vike build && vike preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "biome lint --write .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "check:knip": "pnpm knip",
+    "prepare": "lefthook install",
+    "verify": "pnpm format && pnpm run check:knip && pnpm run lint && pnpm run typecheck"
   },
   "dependencies": {
+    "@classmatejs/react": "^0.2.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "vike": "0.4.259",
@@ -19,6 +24,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "daisyui": "^5.5.19",
+    "knip": "^6.12.2",
+    "lefthook": "^2.1.6",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.11"
