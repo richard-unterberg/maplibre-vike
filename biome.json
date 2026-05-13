@@ -28,7 +28,7 @@
         "noUnusedFunctionParameters": "off"
       },
       "security": {
-        "noDangerouslySetInnerHtml": "info"
+        "noDangerouslySetInnerHtml": "warn"
       },
       "suspicious": {
         "noArrayIndexKey": "warn",

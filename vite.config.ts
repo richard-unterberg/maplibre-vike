@@ -21,6 +21,9 @@ export const pathAliases = Object.entries(tsConf.compilerOptions.paths).map(([ke
 
 export default defineConfig({
   plugins: [vike(), react(), tailwindcss()],
+  optimizeDeps: {
+    exclude: ['vike-react/ClientOnly'],
+  },
   resolve: {
     alias: pathAliases,
   },

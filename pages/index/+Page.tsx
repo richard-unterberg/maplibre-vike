@@ -1,10 +1,5 @@
 const Page = () => {
-  return (
-    <>
-      <h1>My Vike app</h1>
-      <p>This page is:</p>
-    </>
-  )
+  return 'Helloow'
 }
 
 export default Page
