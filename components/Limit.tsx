@@ -15,22 +15,26 @@ const layoutComponentSizeMapping = {
   xs: 'max-w-[768px]',
   sm: 'max-w-[1000px]',
   md: 'max-w-[1480px]',
-  lg: 'max-w-[1800px]',
+  lg: 'max-w-[1700px]',
   full: 'max-w-none',
 } as const
 
 interface LayoutComponentProps {
   $size?: LayoutSize
-  $noGrow?: boolean
+  $noPadding?: boolean
 }
 
 const LayoutComponent = cm.div.variants<LayoutComponentProps>({
-  base: ({ $noGrow }) => `px-4 ${$noGrow ? '' : 'mx-auto w-full'} relative`,
+  base: 'relative mx-auto w-full',
   variants: {
     $size: layoutComponentSizeMapping,
+    $noPadding: {
+      false: 'px-4',
+    },
   },
   defaultVariants: {
-    $size: LayoutSize.full,
+    $size: LayoutSize.lg,
+    $noPadding: false,
   },
 })
 

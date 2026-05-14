@@ -14,10 +14,11 @@
     "@classmatejs/react": "^0.2.1",
     "lucide-react": "^1.14.0",
     "maplibre-gl": "^5.24.0",
+    "motion": "^12.38.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "vike": "0.4.259",
-    "vike-react": "^0.6.21"
+    "vike-react": "^0.6.22"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
@@ -30,11 +31,12 @@
     "knip": "^6.12.2",
     "lefthook": "^2.1.6",
     "tailwindcss": "^4.3.0",
-    "typescript": "6",
+    "typescript": "^6.0.3",
     "vite": "^8.0.11"
   },
   "type": "module",
   "engines": {
     "node": ">=24.0.0"
-  }
+  },
+  "packageManager": "pnpm@11.1.1+sha512.d1fdf5f73c617b64fa1a56a81c3c8dfe0e966e33a6010aa256b517ae77be21d93e05affc0de1a83b0e4f29d569f68b446ae8f068cd7247c0bb3df0fb4d7bdf9a"
 }

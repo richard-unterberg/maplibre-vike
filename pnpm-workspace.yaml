@@ -1,3 +1,6 @@
+allowBuilds:
+  esbuild: false
+  lefthook: false
 ignoredBuiltDependencies:
   - esbuild
   - lefthook

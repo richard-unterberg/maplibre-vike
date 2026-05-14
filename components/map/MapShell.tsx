@@ -6,25 +6,19 @@ import type { MapViewProps } from '@/components/map/map-types'
 
 const MapLibreMap = lazy(() => import('@/components/map/MapLibreMap'))
 
-const mapSizeClass = {
-  overview: 'h-[calc(100dvh-4rem)] w-full',
-  detail: 'h-[40dvh] min-h-[280px] w-full',
-  embedded: 'h-[360px] w-full rounded-box',
-} as const
-
 interface MapShellProps extends MapViewProps {
   className?: string
 }
 
-const MapShell = ({ className = '', variant = 'overview', ...mapProps }: MapShellProps) => {
+const MapShell = ({ className = '', ...mapProps }: MapShellProps) => {
   return (
     <section
-      className={`absolute isolate left-0 w-full top-16 h-[calc(100svh-16*var(--spacing))] overflow-hidden bg-base-200 ${mapSizeClass[variant]} ${className}`}
+      className={`absolute isolate left-0 w-full top-0 h-full overflow-hidden bg-base-200 ${className}`}
       aria-label="Interactive map"
     >
       <ClientOnly fallback={<MapFallback />}>
         <Suspense fallback={<MapFallback />}>
-          <MapLibreMap variant={variant} {...mapProps} />
+          <MapLibreMap {...mapProps} />
         </Suspense>
       </ClientOnly>
     </section>
