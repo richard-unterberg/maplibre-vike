@@ -1,10 +1,9 @@
-import { clientOnly } from 'vike-react/clientOnly'
+import { ClientOnly } from 'vike-react/ClientOnly'
 
 import MapFallback from '@/components/map/MapFallback'
+import MapLibreMap from '@/components/map/MapLibreMap'
 import type { MapCameraIntent } from '@/components/map/map-types'
 import type { MapCategory, MapMarker } from '@/data/constants'
-
-const MapLibreMap = clientOnly(() => import('@/components/map/MapLibreMap'))
 
 interface MapShellProps {
   cameraIntent: MapCameraIntent
@@ -20,13 +19,14 @@ const MapShell = ({ cameraIntent, categories, className = '', markers, selectedM
       className={`absolute isolate left-0 w-full top-0 h-full overflow-hidden bg-base-200 ${className}`}
       aria-label="Interactive map"
     >
-      <MapLibreMap
-        cameraIntent={cameraIntent}
-        categories={categories}
-        fallback={<MapFallback />}
-        markers={markers}
-        selectedMarker={selectedMarker}
-      />
+      <ClientOnly fallback={<MapFallback />}>
+        <MapLibreMap
+          cameraIntent={cameraIntent}
+          categories={categories}
+          markers={markers}
+          selectedMarker={selectedMarker}
+        />
+      </ClientOnly>
     </section>
   )
 }

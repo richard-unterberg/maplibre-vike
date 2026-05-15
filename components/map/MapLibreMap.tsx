@@ -1,16 +1,16 @@
-import maplibregl, { type Map as MapLibreInstance } from 'maplibre-gl'
+import maplibregl, { type GeoJSONSource, type Map as MapLibreInstance, type MapMouseEvent } from 'maplibre-gl'
 import { useEffect, useRef, useState } from 'react'
 import { navigate } from 'vike/client/router'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/map/map-controls.css'
 
-import { getMapStyleUrl } from '@/components/map/map-styles'
 import { useMapStore } from '@/components/map/map-store'
+import { getMapStyleUrl } from '@/components/map/map-styles'
 import {
+  type Coordinates,
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_PADDING,
   DEFAULT_MAP_ZOOM,
-  type Coordinates,
   type MapBounds,
   type MapCameraIntent,
   type RequiredMapPadding,
@@ -38,11 +38,104 @@ const toMapLibrePadding = (padding: RequiredMapPadding) => ({
   top: padding.top,
 })
 
-const setControlOffsets = (container: HTMLElement, padding: RequiredMapPadding) => {
-  container.style.setProperty('--map-frame-offset-bottom', `${padding.bottom}px`)
-  container.style.setProperty('--map-frame-offset-left', `${padding.left}px`)
-  container.style.setProperty('--map-frame-offset-right', `${padding.right}px`)
-  container.style.setProperty('--map-frame-offset-top', `${padding.top}px`)
+const MARKER_SOURCE_ID = 'maplibre-vike-markers'
+const MARKER_SELECTED_LAYER_ID = 'maplibre-vike-marker-selected'
+const MARKER_LAYER_ID = 'maplibre-vike-marker'
+const MARKER_CORE_LAYER_ID = 'maplibre-vike-marker-core'
+
+const markerColors = {
+  culture: '#7c3aed',
+  food: '#be123c',
+  history: '#b45309',
+  mobility: '#0369a1',
+  nature: '#15803d',
+  workspace: '#0f766e',
+} as const satisfies Record<MapCategory['id'], string>
+
+interface MarkerFeatureProperties {
+  categoryId: MapCategory['id']
+  color: string
+  id: string
+  selected: boolean
+}
+
+const getMarkerFeatureCollection = (
+  markers: MapMarker[],
+  selectedMarker: MapMarker | null,
+): GeoJSON.FeatureCollection<GeoJSON.Point, MarkerFeatureProperties> => ({
+  features: markers.map((marker) => {
+    const categoryId = getPrimaryMarkerCategory(marker).id
+
+    return {
+      geometry: {
+        coordinates: toMapLibreCenter(marker.coordinates),
+        type: 'Point',
+      },
+      properties: {
+        categoryId,
+        color: markerColors[categoryId],
+        id: marker.id,
+        selected: marker.id === selectedMarker?.id,
+      },
+      type: 'Feature',
+    }
+  }),
+  type: 'FeatureCollection',
+})
+
+const ensureMarkerLayers = (map: MapLibreInstance) => {
+  if (!map.getSource(MARKER_SOURCE_ID)) {
+    map.addSource(MARKER_SOURCE_ID, {
+      data: {
+        features: [],
+        type: 'FeatureCollection',
+      },
+      type: 'geojson',
+    })
+  }
+
+  if (!map.getLayer(MARKER_SELECTED_LAYER_ID)) {
+    map.addLayer({
+      filter: ['==', ['get', 'selected'], true],
+      id: MARKER_SELECTED_LAYER_ID,
+      paint: {
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.22,
+        'circle-radius': 18,
+        'circle-stroke-color': ['get', 'color'],
+        'circle-stroke-opacity': 0.45,
+        'circle-stroke-width': 2,
+      },
+      source: MARKER_SOURCE_ID,
+      type: 'circle',
+    })
+  }
+
+  if (!map.getLayer(MARKER_LAYER_ID)) {
+    map.addLayer({
+      id: MARKER_LAYER_ID,
+      paint: {
+        'circle-color': ['get', 'color'],
+        'circle-radius': ['case', ['get', 'selected'], 9, 7],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2,
+      },
+      source: MARKER_SOURCE_ID,
+      type: 'circle',
+    })
+  }
+
+  if (!map.getLayer(MARKER_CORE_LAYER_ID)) {
+    map.addLayer({
+      id: MARKER_CORE_LAYER_ID,
+      paint: {
+        'circle-color': '#ffffff',
+        'circle-radius': ['case', ['get', 'selected'], 3.5, 2.5],
+      },
+      source: MARKER_SOURCE_ID,
+      type: 'circle',
+    })
+  }
 }
 
 const applyBoundsIntent = (map: MapLibreInstance, cameraIntent: MapCameraIntent) => {
@@ -58,12 +151,7 @@ const applyBoundsIntent = (map: MapLibreInstance, cameraIntent: MapCameraIntent)
   })
 }
 
-const MapLibreMap = ({
-  cameraIntent: initialCameraIntentProp,
-  categories,
-  markers,
-  selectedMarker,
-}: MapLibreMapProps) => {
+const MapLibreMap = ({ cameraIntent: initialCameraIntentProp, markers, selectedMarker }: MapLibreMapProps) => {
   const cameraIntent = useMapStore((state) => state.cameraIntent)
   const containerRef = useRef<HTMLDivElement>(null)
   const initialCameraIntent = initialCameraIntentProp ?? useMapStore.getState().cameraIntent
@@ -75,7 +163,6 @@ const MapLibreMap = ({
   })
   const lastAppliedIntentIdRef = useRef<string | null>(initialCameraIntent?.id ?? null)
   const mapRef = useRef<MapLibreInstance | null>(null)
-  const markerInstancesRef = useRef<maplibregl.Marker[]>([])
   const [mapReady, setMapReady] = useState(false)
   const styleUrlRef = useRef(getMapStyleUrl(getCurrentThemePreference()))
 
@@ -94,7 +181,6 @@ const MapLibreMap = ({
       zoom: initialCameraRef.current.zoom,
     })
 
-    setControlOffsets(containerRef.current, initialCameraRef.current.padding)
     map.setPadding(toMapLibrePadding(initialCameraRef.current.padding))
     if (initialCameraIntentRef.current?.mode === 'bounds') {
       applyBoundsIntent(map, {
@@ -109,10 +195,6 @@ const MapLibreMap = ({
 
     return () => {
       setMapReady(false)
-      for (const markerInstance of markerInstancesRef.current) {
-        markerInstance.remove()
-      }
-      markerInstancesRef.current = []
       map.remove()
       mapRef.current = null
     }
@@ -120,14 +202,12 @@ const MapLibreMap = ({
 
   useEffect(() => {
     const map = mapRef.current
-    const container = containerRef.current
 
-    if (!map || !container || !cameraIntent || lastAppliedIntentIdRef.current === cameraIntent.id) {
+    if (!map || !cameraIntent || lastAppliedIntentIdRef.current === cameraIntent.id) {
       return
     }
 
     lastAppliedIntentIdRef.current = cameraIntent.id
-    setControlOffsets(container, cameraIntent.padding)
     map.stop()
 
     if (cameraIntent.mode === 'bounds' && cameraIntent.bounds) {
@@ -163,41 +243,70 @@ const MapLibreMap = ({
       return
     }
 
-    const categoriesById = new Map(categories.map((category) => [category.id, category]))
-
-    for (const markerInstance of markerInstancesRef.current) {
-      markerInstance.remove()
-    }
-
-    markerInstancesRef.current = markers.map((marker) => {
-      const primaryCategory = categoriesById.get(marker.categoryIds[0]) ?? getPrimaryMarkerCategory(marker)
-      const element = document.createElement('button')
-
-      element.type = 'button'
-      element.className = 'map-marker'
-      element.dataset.category = primaryCategory.id
-      element.dataset.selected = marker.id === selectedMarker?.id ? 'true' : 'false'
-      element.ariaLabel = `Open ${marker.title}`
-      element.addEventListener('click', () => {
-        void navigate(getMarkerRoute(marker))
-      })
-
-      return new maplibregl.Marker({
-        anchor: 'bottom',
-        element,
-      })
-        .setLngLat(toMapLibreCenter(marker.coordinates))
-        .addTo(map)
-    })
-
-    return () => {
-      for (const markerInstance of markerInstancesRef.current) {
-        markerInstance.remove()
+    const syncMarkerSource = () => {
+      if (!map.isStyleLoaded()) {
+        return
       }
 
-      markerInstancesRef.current = []
+      ensureMarkerLayers(map)
+
+      const source = map.getSource(MARKER_SOURCE_ID) as GeoJSONSource | undefined
+
+      source?.setData(getMarkerFeatureCollection(markers, selectedMarker))
     }
-  }, [categories, mapReady, markers, selectedMarker?.id])
+
+    map.on('load', syncMarkerSource)
+    map.on('style.load', syncMarkerSource)
+    syncMarkerSource()
+
+    return () => {
+      map.off('load', syncMarkerSource)
+      map.off('style.load', syncMarkerSource)
+    }
+  }, [mapReady, markers, selectedMarker])
+
+  useEffect(() => {
+    const map = mapRef.current
+
+    if (!map || !mapReady) {
+      return
+    }
+
+    const getMarkerIdAtPoint = (event: MapMouseEvent) => {
+      if (!map.getLayer(MARKER_LAYER_ID)) {
+        return undefined
+      }
+
+      return map.queryRenderedFeatures(event.point, { layers: [MARKER_LAYER_ID] })[0]?.properties?.id as
+        | string
+        | undefined
+    }
+
+    const handleMarkerClick = (event: MapMouseEvent) => {
+      const markerId = getMarkerIdAtPoint(event)
+      const marker = markers.find((candidate) => candidate.id === markerId)
+
+      if (!marker) {
+        return
+      }
+
+      event.preventDefault()
+      void navigate(getMarkerRoute(marker))
+    }
+
+    const handleMarkerHover = (event: MapMouseEvent) => {
+      map.getCanvas().style.cursor = getMarkerIdAtPoint(event) ? 'pointer' : ''
+    }
+
+    map.on('click', handleMarkerClick)
+    map.on('mousemove', handleMarkerHover)
+
+    return () => {
+      map.off('click', handleMarkerClick)
+      map.off('mousemove', handleMarkerHover)
+      map.getCanvas().style.cursor = ''
+    }
+  }, [mapReady, markers])
 
   useEffect(() => {
     const map = mapRef.current

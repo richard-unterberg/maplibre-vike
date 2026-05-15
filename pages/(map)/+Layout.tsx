@@ -167,7 +167,7 @@ const MapLayout = ({ children }: { children: React.ReactNode }) => {
       {view !== 'overview' && (
         <button
           aria-pressed={view === 'mapFocus'}
-          className="btn btn-sm absolute top-4 right-4 z-10 border-base-300 bg-base-100/90 backdrop-blur"
+          className="btn btn-sm absolute top-4 right-4 z-10 border-base-300 bg-base-100/90"
           onClick={() => setView(view === 'mapFocus' ? 'detail' : 'mapFocus')}
           type="button"
         >

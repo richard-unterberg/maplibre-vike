@@ -3,7 +3,7 @@ import { ThemePreference, type ThemePreference as ThemePreferenceValue } from '@
 const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || 'nonono'
 
 const mapStyleIds = {
-  [ThemePreference.light]: '019a8b57-9c65-790a-8605-22d382b6292d',
+  [ThemePreference.light]: 'dataviz-v4',
   [ThemePreference.dark]: '617863e6-6f57-4aac-beb5-8dd33d71337a',
 } as const satisfies Record<ThemePreferenceValue, string>
 

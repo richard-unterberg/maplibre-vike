@@ -15,11 +15,11 @@ const MapPage = () => {
   const filteredMarkers = activeCategoryId ? getMarkersByCategory(activeCategoryId) : markers
 
   return (
-    <section className="pointer-events-auto fixed top-24 left-8 z-10 max-w-[calc(100vw-4rem)]">
+    <section className="pointer-events-auto fixed top-18 left-3 z-10 max-w-[calc(100vw-4rem)]">
       {!categoryMenuOpen && (
         <button
           type="button"
-          className="btn border-base-300 bg-base-100/90 shadow-lg backdrop-blur"
+          className="btn border-base-300 bg-base-100/90"
           aria-expanded={false}
           aria-label="Open category menu"
           onClick={toggleCategoryMenu}
@@ -30,7 +30,7 @@ const MapPage = () => {
       )}
 
       {categoryMenuOpen && (
-        <div className="w-[min(42rem,calc(100vw-4rem))] rounded-box border border-base-300 bg-base-100/90 p-5 shadow-lg backdrop-blur">
+        <div className="w-[min(42rem,calc(100vw-4rem))] rounded-box border border-base-300 bg-base-100/90 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-base-muted text-sm">Chemnitz map</p>

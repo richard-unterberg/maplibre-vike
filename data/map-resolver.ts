@@ -16,7 +16,7 @@ export const getAllMarkers = (): MapMarker[] => [...MAP_MARKERS]
 
 export const getMarkerRoute = (marker: Pick<MapMarker, 'id'>) => `/location/${marker.id}`
 
-export const findMarkerById = (id?: string | null): MapMarker | null => {
+const findMarkerById = (id?: string | null): MapMarker | null => {
   if (!id) {
     return null
   }

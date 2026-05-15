@@ -1,6 +1,6 @@
 import type { Coordinates, MapBounds } from '@/components/map/map-types'
-import type { GroupedMapMarkers } from '@/data/map-resolver'
 import type { MapCategory, MapMarker } from '@/data/constants'
+import type { GroupedMapMarkers } from '@/data/map-resolver'
 
 type MapPageView =
   | {
