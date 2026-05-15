@@ -18,7 +18,8 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "vike": "0.4.259",
-    "vike-react": "^0.6.22"
+    "vike-react": "^0.6.22",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",

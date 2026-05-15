@@ -1,8 +1,18 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePageContext } from 'vike-react/usePageContext'
 import Limit from '@/components/Limit'
 import MapShell from '@/components/map/MapShell'
+import { useMapStore } from '@/components/map/map-store'
+import {
+  DEFAULT_MAP_CENTER,
+  DEFAULT_MAP_PADDING,
+  DEFAULT_MAP_ZOOM,
+  type MapCameraIntent,
+  type MapView,
+  normalizeMapPadding,
+} from '@/components/map/map-types'
+import { useSyncMapCameraIntent } from '@/components/map/useSyncMapCameraIntent'
 import { findDemoLocationByRoute } from '@/root/data/demo-locations'
 
 const sidebarTransition = {
@@ -10,80 +20,55 @@ const sidebarTransition = {
   ease: 'easeOut',
 } as const
 
-const LG_MEDIA_QUERY = '(min-width: 64rem)'
+const sidebarMotion = {
+  animate: { y: 0 },
+  exit: { y: '100%' },
+  initial: { y: '100%' },
+} as const
+const sidebarHeightByView = {
+  detail: '50%',
+  mapFocus: '25%',
+} as const satisfies Record<Exclude<MapView, 'overview'>, string>
 
 const MapLayout = ({ children }: { children: React.ReactNode }) => {
   const pageContext = usePageContext()
-  const isOverview = pageContext.urlPathname === '/map'
+  const routeView: MapView = pageContext.urlPathname === '/map' ? 'overview' : 'detail'
+  const storedView = useMapStore((state) => state.view)
+  const setView = useMapStore((state) => state.setView)
+  const view: MapView = routeView === 'overview' ? 'overview' : storedView === 'mapFocus' ? 'mapFocus' : 'detail'
   const selectedLocation = findDemoLocationByRoute(pageContext.urlPathname)
-  const [isLargeScreen, setIsLargeScreen] = useState(false)
   const [sidebarElement, setSidebarElement] = useState<HTMLElement | null>(null)
-  const [sidebarSize, setSidebarSize] = useState({ height: 0, width: 0 })
+  const [sidebarHeight, setSidebarHeight] = useState(0)
 
   useEffect(() => {
-    const { body, documentElement } = document
-    const scrollY = window.scrollY
-    const previousStyles = {
-      bodyLeft: body.style.left,
-      bodyOverflow: body.style.overflow,
-      bodyOverscrollBehavior: body.style.overscrollBehavior,
-      bodyPosition: body.style.position,
-      bodyRight: body.style.right,
-      bodyTop: body.style.top,
-      bodyWidth: body.style.width,
-      documentElementOverflow: documentElement.style.overflow,
-      documentElementOverscrollBehavior: documentElement.style.overscrollBehavior,
-    }
-
+    const { documentElement } = document
     documentElement.style.overflow = 'hidden'
-    documentElement.style.overscrollBehavior = 'none'
-    body.style.left = '0'
-    body.style.overflow = 'hidden'
-    body.style.overscrollBehavior = 'none'
-    body.style.position = 'fixed'
-    body.style.right = '0'
-    body.style.top = `-${scrollY}px`
-    body.style.width = '100%'
-
     return () => {
-      documentElement.style.overflow = previousStyles.documentElementOverflow
-      documentElement.style.overscrollBehavior = previousStyles.documentElementOverscrollBehavior
-      body.style.left = previousStyles.bodyLeft
-      body.style.overflow = previousStyles.bodyOverflow
-      body.style.overscrollBehavior = previousStyles.bodyOverscrollBehavior
-      body.style.position = previousStyles.bodyPosition
-      body.style.right = previousStyles.bodyRight
-      body.style.top = previousStyles.bodyTop
-      body.style.width = previousStyles.bodyWidth
-      window.scrollTo(0, scrollY)
+      documentElement.style.overflow = ''
     }
   }, [])
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia(LG_MEDIA_QUERY)
-    const updateIsLargeScreen = () => setIsLargeScreen(mediaQuery.matches)
-
-    updateIsLargeScreen()
-    mediaQuery.addEventListener('change', updateIsLargeScreen)
-
-    return () => {
-      mediaQuery.removeEventListener('change', updateIsLargeScreen)
+    if (routeView === 'overview') {
+      setView('overview')
+      return
     }
-  }, [])
+
+    if (storedView === 'overview') {
+      setView('detail')
+    }
+  }, [routeView, setView, storedView])
 
   useEffect(() => {
-    if (isOverview || !sidebarElement) {
-      setSidebarSize({ height: 0, width: 0 })
+    if (view === 'overview' || !sidebarElement) {
+      setSidebarHeight(0)
       return
     }
 
     const updateSidebarSize = () => {
-      const { height, width } = sidebarElement.getBoundingClientRect()
+      const { height } = sidebarElement.getBoundingClientRect()
 
-      setSidebarSize({
-        height: Math.round(height),
-        width: Math.round(width),
-      })
+      setSidebarHeight(Math.round(height))
     }
     const resizeObserver = new ResizeObserver(updateSidebarSize)
 
@@ -93,33 +78,45 @@ const MapLayout = ({ children }: { children: React.ReactNode }) => {
     return () => {
       resizeObserver.disconnect()
     }
-  }, [isOverview, sidebarElement])
+  }, [sidebarElement, view])
 
-  const sidebarMotion = isLargeScreen
-    ? {
-        animate: { x: 0, y: 0 },
-        exit: { x: '100%', y: 0 },
-        initial: { x: '100%', y: 0 },
-      }
-    : {
-        animate: { x: 0, y: 0 },
-        exit: { x: 0, y: '100%' },
-        initial: { x: 0, y: '100%' },
-      }
-  const mapPadding = isOverview
-    ? undefined
-    : isLargeScreen
-      ? { right: sidebarSize.width }
-      : { bottom: sidebarSize.height }
+  const cameraIntent = useMemo<MapCameraIntent>(() => {
+    const padding = normalizeMapPadding(view === 'overview' ? DEFAULT_MAP_PADDING : { bottom: sidebarHeight })
+    const mode = view === 'overview' ? 'overview' : 'detail'
+    const selectedMarkerId = selectedLocation?.id ?? null
+
+    return {
+      center: selectedLocation?.coordinates ?? DEFAULT_MAP_CENTER,
+      id: `${view}:${selectedMarkerId ?? 'none'}:${padding.top}:${padding.right}:${padding.bottom}:${padding.left}`,
+      mode,
+      padding,
+      selectedMarkerId,
+      transition: 'ease',
+      zoom: selectedLocation?.zoom ?? DEFAULT_MAP_ZOOM,
+    }
+  }, [selectedLocation, sidebarHeight, view])
+
+  useSyncMapCameraIntent(cameraIntent)
 
   return (
     <div className="relative h-[calc(100dvh-16*var(--spacing))] min-w-0 overflow-hidden">
       <div className="absolute inset-0 z-0 overflow-hidden">
-        <MapShell center={selectedLocation?.coordinates} padding={mapPadding} zoom={selectedLocation?.zoom} />
+        <MapShell />
       </div>
 
+      {view !== 'overview' && (
+        <button
+          aria-pressed={view === 'mapFocus'}
+          className="btn btn-sm absolute top-4 right-4 z-10 border-base-300 bg-base-100/90 backdrop-blur"
+          onClick={() => setView(view === 'mapFocus' ? 'detail' : 'mapFocus')}
+          type="button"
+        >
+          {view === 'mapFocus' ? 'Dock' : 'Map'}
+        </button>
+      )}
+
       <AnimatePresence initial={false}>
-        {isOverview ? (
+        {view === 'overview' && (
           <motion.div
             animate={{ opacity: 1 }}
             className="pointer-events-none absolute inset-0 z-10"
@@ -130,17 +127,21 @@ const MapLayout = ({ children }: { children: React.ReactNode }) => {
           >
             <Limit>{children}</Limit>
           </motion.div>
-        ) : (
+        )}
+
+        {view !== 'overview' && (
           <motion.aside
-            animate={sidebarMotion.animate}
-            className="absolute inset-x-0 bottom-0 z-20 h-1/2 min-w-0 border-base-300 border-t bg-base-100 lg:inset-y-0 lg:right-0 lg:left-auto lg:h-auto lg:w-[min(37.5%,32rem)] lg:border-t-0 lg:border-l"
+            animate={{ ...sidebarMotion.animate, height: sidebarHeightByView[view] }}
+            className="absolute inset-x-0 bottom-0 z-20 min-w-0 border-base-300 border-t bg-base-100"
             exit={sidebarMotion.exit}
-            initial={sidebarMotion.initial}
+            initial={{ ...sidebarMotion.initial, height: sidebarHeightByView[view] }}
             key="detail-content"
             ref={setSidebarElement}
             transition={sidebarTransition}
           >
-            <Limit className="overflow-y-auto absolute inset-0">{children}</Limit>
+            <Limit $size="md" className="overflow-y-auto absolute inset-0">
+              {children}
+            </Limit>
           </motion.aside>
         )}
       </AnimatePresence>

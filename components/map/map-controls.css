@@ -10,6 +10,7 @@
   --map-frame-offset-left: 0px;
   --map-frame-offset-right: 0px;
   --map-frame-offset-top: 0px;
+
   color: var(--map-control-content);
   font-family: var(--font-sans);
 }
@@ -51,7 +52,7 @@
 .maplibre-vike-map .maplibregl-ctrl-bottom-right,
 .maplibre-vike-map .maplibregl-ctrl-top-left,
 .maplibre-vike-map .maplibregl-ctrl-top-right {
-  transition: transform 200ms ease;
+  transition: none;
 }
 
 .maplibre-vike-map .maplibregl-ctrl-group,

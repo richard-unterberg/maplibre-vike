@@ -21,9 +21,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         </Limit>
       </header>
       <main className="pt-16">
-        <Limit $noPadding className="relative h-[calc(100dvh-16*var(--spacing))]">
-          {children}
-        </Limit>
+        <div className="relative h-[calc(100dvh-16*var(--spacing))]">{children}</div>
       </main>
     </div>
   )

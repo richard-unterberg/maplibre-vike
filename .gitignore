@@ -150,3 +150,6 @@ dist
 # aws-cdk
 .cdk.staging
 cdk.out
+
+# pnpm store
+.pnpm-store

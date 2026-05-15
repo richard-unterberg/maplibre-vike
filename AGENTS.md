@@ -31,6 +31,7 @@ Use the existing project stack and conventions.
   - `@/pages/*`
   - `@/components/*`
   - `@/styles/*`
+  - `@/data/*`
   - `@/root/*`
 
 Useful project commands:

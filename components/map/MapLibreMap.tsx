@@ -4,38 +4,60 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/map/map-controls.css'
 
 import { getMapStyleUrl } from '@/components/map/map-styles'
-import type { Coordinates, MapPadding, MapViewProps } from '@/components/map/map-types'
+import { useMapStore } from '@/components/map/map-store'
+import {
+  DEFAULT_MAP_CENTER,
+  DEFAULT_MAP_PADDING,
+  DEFAULT_MAP_ZOOM,
+  type MapBounds,
+  type Coordinates,
+  type MapCameraIntent,
+  type RequiredMapPadding,
+} from '@/components/map/map-types'
 import { getCurrentThemePreference } from '@/components/themeAppearance'
 
-const DEFAULT_CENTER: Coordinates = [13, 50.9]
-const DEFAULT_PADDING = {
-  bottom: 0,
-  left: 0,
-  right: 0,
-  top: 0,
-} as const satisfies Required<MapPadding>
-const DEFAULT_ZOOM = 7
-
 const toMapLibreCenter = (center: Coordinates): [number, number] => [center[0], center[1]]
+const toMapLibreBounds = (bounds: MapBounds): [[number, number], [number, number]] => [
+  [bounds[0][0], bounds[0][1]],
+  [bounds[1][0], bounds[1][1]],
+]
+const toMapLibrePadding = (padding: RequiredMapPadding) => ({
+  bottom: padding.bottom,
+  left: padding.left,
+  right: padding.right,
+  top: padding.top,
+})
 
-const MapLibreMap = ({ center = DEFAULT_CENTER, padding = DEFAULT_PADDING, zoom = DEFAULT_ZOOM }: MapViewProps) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const initialCameraRef = useRef({
-    center,
-    padding: {
-      bottom: padding.bottom ?? 0,
-      left: padding.left ?? 0,
-      right: padding.right ?? 0,
-      top: padding.top ?? 0,
-    },
-    zoom,
+const setControlOffsets = (container: HTMLElement, padding: RequiredMapPadding) => {
+  container.style.setProperty('--map-frame-offset-bottom', `${padding.bottom}px`)
+  container.style.setProperty('--map-frame-offset-left', `${padding.left}px`)
+  container.style.setProperty('--map-frame-offset-right', `${padding.right}px`)
+  container.style.setProperty('--map-frame-offset-top', `${padding.top}px`)
+}
+
+const applyBoundsIntent = (map: MapLibreInstance, cameraIntent: MapCameraIntent) => {
+  if (!cameraIntent.bounds) {
+    return
+  }
+
+  map.fitBounds(toMapLibreBounds(cameraIntent.bounds), {
+    duration: cameraIntent.transition === 'jump' ? 0 : 600,
+    padding: toMapLibrePadding(cameraIntent.padding),
   })
+}
+
+const MapLibreMap = () => {
+  const cameraIntent = useMapStore((state) => state.cameraIntent)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const initialCameraIntent = useMapStore.getState().cameraIntent
+  const initialCameraRef = useRef({
+    center: initialCameraIntent?.center ?? DEFAULT_MAP_CENTER,
+    padding: initialCameraIntent?.padding ?? DEFAULT_MAP_PADDING,
+    zoom: initialCameraIntent?.zoom ?? DEFAULT_MAP_ZOOM,
+  })
+  const lastAppliedIntentIdRef = useRef<string | null>(null)
   const mapRef = useRef<MapLibreInstance | null>(null)
   const styleUrlRef = useRef(getMapStyleUrl(getCurrentThemePreference()))
-  const paddingBottom = padding.bottom ?? 0
-  const paddingLeft = padding.left ?? 0
-  const paddingRight = padding.right ?? 0
-  const paddingTop = padding.top ?? 0
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -52,7 +74,8 @@ const MapLibreMap = ({ center = DEFAULT_CENTER, padding = DEFAULT_PADDING, zoom 
       zoom: initialCameraRef.current.zoom,
     })
 
-    map.setPadding(initialCameraRef.current.padding)
+    setControlOffsets(containerRef.current, initialCameraRef.current.padding)
+    map.setPadding(toMapLibrePadding(initialCameraRef.current.padding))
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-left')
     mapRef.current = map
@@ -64,37 +87,41 @@ const MapLibreMap = ({ center = DEFAULT_CENTER, padding = DEFAULT_PADDING, zoom 
   }, [])
 
   useEffect(() => {
+    const map = mapRef.current
     const container = containerRef.current
 
-    if (!container) {
+    if (!map || !container || !cameraIntent || lastAppliedIntentIdRef.current === cameraIntent.id) {
       return
     }
 
-    container.style.setProperty('--map-frame-offset-bottom', `${paddingBottom}px`)
-    container.style.setProperty('--map-frame-offset-left', `${paddingLeft}px`)
-    container.style.setProperty('--map-frame-offset-right', `${paddingRight}px`)
-    container.style.setProperty('--map-frame-offset-top', `${paddingTop}px`)
-  }, [paddingBottom, paddingLeft, paddingRight, paddingTop])
+    lastAppliedIntentIdRef.current = cameraIntent.id
+    setControlOffsets(container, cameraIntent.padding)
 
-  useEffect(() => {
-    const map = mapRef.current
+    if (cameraIntent.mode === 'bounds' && cameraIntent.bounds) {
+      applyBoundsIntent(map, cameraIntent)
+      return
+    }
 
-    if (!map) {
+    if (!cameraIntent.center || typeof cameraIntent.zoom !== 'number') {
+      return
+    }
+
+    const cameraOptions = {
+      center: toMapLibreCenter(cameraIntent.center),
+      padding: toMapLibrePadding(cameraIntent.padding),
+      zoom: cameraIntent.zoom,
+    }
+
+    if (cameraIntent.transition === 'jump') {
+      map.jumpTo(cameraOptions)
       return
     }
 
     map.easeTo({
-      center: toMapLibreCenter(center),
+      ...cameraOptions,
       duration: 600,
-      padding: {
-        bottom: paddingBottom,
-        left: paddingLeft,
-        right: paddingRight,
-        top: paddingTop,
-      },
-      zoom,
     })
-  }, [center[0], center[1], paddingBottom, paddingLeft, paddingRight, paddingTop, zoom])
+  }, [cameraIntent])
 
   useEffect(() => {
     const map = mapRef.current
