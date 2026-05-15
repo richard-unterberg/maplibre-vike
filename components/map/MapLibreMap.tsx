@@ -1,5 +1,6 @@
 import maplibregl, { type Map as MapLibreInstance } from 'maplibre-gl'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { navigate } from 'vike/client/router'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/map/map-controls.css'
 
@@ -9,12 +10,21 @@ import {
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_PADDING,
   DEFAULT_MAP_ZOOM,
-  type MapBounds,
   type Coordinates,
+  type MapBounds,
   type MapCameraIntent,
   type RequiredMapPadding,
 } from '@/components/map/map-types'
 import { getCurrentThemePreference } from '@/components/themeAppearance'
+import type { MapCategory, MapMarker } from '@/data/constants'
+import { getMarkerRoute, getPrimaryMarkerCategory } from '@/data/map-resolver'
+
+interface MapLibreMapProps {
+  cameraIntent: MapCameraIntent
+  categories: MapCategory[]
+  markers: MapMarker[]
+  selectedMarker: MapMarker | null
+}
 
 const toMapLibreCenter = (center: Coordinates): [number, number] => [center[0], center[1]]
 const toMapLibreBounds = (bounds: MapBounds): [[number, number], [number, number]] => [
@@ -40,23 +50,33 @@ const applyBoundsIntent = (map: MapLibreInstance, cameraIntent: MapCameraIntent)
     return
   }
 
+  map.stop()
+  map.setPadding(toMapLibrePadding(cameraIntent.padding))
   map.fitBounds(toMapLibreBounds(cameraIntent.bounds), {
     duration: cameraIntent.transition === 'jump' ? 0 : 600,
     padding: toMapLibrePadding(cameraIntent.padding),
   })
 }
 
-const MapLibreMap = () => {
+const MapLibreMap = ({
+  cameraIntent: initialCameraIntentProp,
+  categories,
+  markers,
+  selectedMarker,
+}: MapLibreMapProps) => {
   const cameraIntent = useMapStore((state) => state.cameraIntent)
   const containerRef = useRef<HTMLDivElement>(null)
-  const initialCameraIntent = useMapStore.getState().cameraIntent
+  const initialCameraIntent = initialCameraIntentProp ?? useMapStore.getState().cameraIntent
+  const initialCameraIntentRef = useRef(initialCameraIntent)
   const initialCameraRef = useRef({
     center: initialCameraIntent?.center ?? DEFAULT_MAP_CENTER,
     padding: initialCameraIntent?.padding ?? DEFAULT_MAP_PADDING,
     zoom: initialCameraIntent?.zoom ?? DEFAULT_MAP_ZOOM,
   })
-  const lastAppliedIntentIdRef = useRef<string | null>(null)
+  const lastAppliedIntentIdRef = useRef<string | null>(initialCameraIntent?.id ?? null)
   const mapRef = useRef<MapLibreInstance | null>(null)
+  const markerInstancesRef = useRef<maplibregl.Marker[]>([])
+  const [mapReady, setMapReady] = useState(false)
   const styleUrlRef = useRef(getMapStyleUrl(getCurrentThemePreference()))
 
   useEffect(() => {
@@ -76,11 +96,23 @@ const MapLibreMap = () => {
 
     setControlOffsets(containerRef.current, initialCameraRef.current.padding)
     map.setPadding(toMapLibrePadding(initialCameraRef.current.padding))
+    if (initialCameraIntentRef.current?.mode === 'bounds') {
+      applyBoundsIntent(map, {
+        ...initialCameraIntentRef.current,
+        transition: 'jump',
+      })
+    }
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
     map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-left')
     mapRef.current = map
+    setMapReady(true)
 
     return () => {
+      setMapReady(false)
+      for (const markerInstance of markerInstancesRef.current) {
+        markerInstance.remove()
+      }
+      markerInstancesRef.current = []
       map.remove()
       mapRef.current = null
     }
@@ -96,6 +128,7 @@ const MapLibreMap = () => {
 
     lastAppliedIntentIdRef.current = cameraIntent.id
     setControlOffsets(container, cameraIntent.padding)
+    map.stop()
 
     if (cameraIntent.mode === 'bounds' && cameraIntent.bounds) {
       applyBoundsIntent(map, cameraIntent)
@@ -122,6 +155,49 @@ const MapLibreMap = () => {
       duration: 600,
     })
   }, [cameraIntent])
+
+  useEffect(() => {
+    const map = mapRef.current
+
+    if (!map || !mapReady) {
+      return
+    }
+
+    const categoriesById = new Map(categories.map((category) => [category.id, category]))
+
+    for (const markerInstance of markerInstancesRef.current) {
+      markerInstance.remove()
+    }
+
+    markerInstancesRef.current = markers.map((marker) => {
+      const primaryCategory = categoriesById.get(marker.categoryIds[0]) ?? getPrimaryMarkerCategory(marker)
+      const element = document.createElement('button')
+
+      element.type = 'button'
+      element.className = 'map-marker'
+      element.dataset.category = primaryCategory.id
+      element.dataset.selected = marker.id === selectedMarker?.id ? 'true' : 'false'
+      element.ariaLabel = `Open ${marker.title}`
+      element.addEventListener('click', () => {
+        void navigate(getMarkerRoute(marker))
+      })
+
+      return new maplibregl.Marker({
+        anchor: 'bottom',
+        element,
+      })
+        .setLngLat(toMapLibreCenter(marker.coordinates))
+        .addTo(map)
+    })
+
+    return () => {
+      for (const markerInstance of markerInstancesRef.current) {
+        markerInstance.remove()
+      }
+
+      markerInstancesRef.current = []
+    }
+  }, [categories, mapReady, markers, selectedMarker?.id])
 
   useEffect(() => {
     const map = mapRef.current

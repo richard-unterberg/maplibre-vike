@@ -1,5 +1,10 @@
 import Limit from '@/components/Limit'
 import ThemeToggle from '@/components/ThemeToggle'
+import { findMarkerById, getMarkerRoute } from '@/data/map-resolver'
+
+const featuredMarkers = ['karl-marx-monument', 'schlossteich']
+  .map((markerId) => findMarkerById(markerId))
+  .filter((marker) => marker !== null)
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -10,12 +15,11 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
             maplibre-vike
           </a>
           <div className="flex-1 flex justify-center gap-4">
-            <a className="text-sm text-base-muted" href="/location/dummy">
-              Monument
-            </a>
-            <a className="text-sm text-base-muted" href="/location/schlossteich">
-              Schlossteich
-            </a>
+            {featuredMarkers.map((marker) => (
+              <a className="text-sm text-base-muted" href={getMarkerRoute(marker)} key={marker.id}>
+                {marker.title}
+              </a>
+            ))}
           </div>
           <ThemeToggle />
         </Limit>

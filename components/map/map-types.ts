@@ -27,16 +27,16 @@ export interface MapCameraIntent {
 
 export const DEFAULT_MAP_CENTER: Coordinates = [13, 50.9]
 export const DEFAULT_MAP_PADDING = {
-  bottom: 0,
-  left: 0,
-  right: 0,
-  top: 0,
+  bottom: 32,
+  left: 32,
+  right: 32,
+  top: 32,
 } as const satisfies RequiredMapPadding
 export const DEFAULT_MAP_ZOOM = 10
 
 export const normalizeMapPadding = (padding?: MapPadding): RequiredMapPadding => ({
-  bottom: padding?.bottom ?? 0,
-  left: padding?.left ?? 0,
-  right: padding?.right ?? 0,
-  top: padding?.top ?? 0,
+  bottom: padding?.bottom ?? DEFAULT_MAP_PADDING.bottom,
+  left: padding?.left ?? DEFAULT_MAP_PADDING.left,
+  right: padding?.right ?? DEFAULT_MAP_PADDING.right,
+  top: padding?.top ?? DEFAULT_MAP_PADDING.top,
 })

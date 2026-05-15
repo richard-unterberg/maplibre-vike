@@ -146,3 +146,72 @@
   color: var(--map-control-content);
   font-family: var(--font-mono);
 }
+
+.maplibre-vike-map .map-marker {
+  --marker-color: var(--color-primary);
+
+  align-items: center;
+  background: var(--marker-color);
+  border: 2px solid var(--color-base-100);
+  border-radius: 999px 999px 999px 0;
+  box-shadow: 0 8px 18px
+    color-mix(in oklab, var(--color-base-content) 24%, transparent);
+  cursor: pointer;
+  display: flex;
+  height: 1.35rem;
+  justify-content: center;
+  transform: rotate(-45deg);
+  transition: none;
+  width: 1.35rem;
+}
+
+.maplibre-vike-map .map-marker::after {
+  background: var(--color-base-100);
+  border-radius: 999px;
+  content: '';
+  display: block;
+  height: 0.38rem;
+  width: 0.38rem;
+}
+
+.maplibre-vike-map .map-marker[data-category='culture'] {
+  --marker-color: #7c3aed;
+}
+
+.maplibre-vike-map .map-marker[data-category='history'] {
+  --marker-color: #b45309;
+}
+
+.maplibre-vike-map .map-marker[data-category='nature'] {
+  --marker-color: #15803d;
+}
+
+.maplibre-vike-map .map-marker[data-category='mobility'] {
+  --marker-color: #0369a1;
+}
+
+.maplibre-vike-map .map-marker[data-category='food'] {
+  --marker-color: #be123c;
+}
+
+.maplibre-vike-map .map-marker[data-category='workspace'] {
+  --marker-color: #0f766e;
+}
+
+.maplibre-vike-map .map-marker[data-selected='true'] {
+  box-shadow:
+    0 0 0 4px color-mix(in oklab, var(--marker-color) 28%, transparent),
+    0 10px 22px color-mix(in oklab, var(--color-base-content) 28%, transparent);
+  transform: rotate(-45deg) scale(1.18);
+}
+
+.maplibre-vike-map .map-marker:focus-visible {
+  outline: 3px solid var(--color-primary-muted-medium);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .maplibre-vike-map .map-marker:hover {
+    transform: rotate(-45deg) scale(1.12);
+  }
+}

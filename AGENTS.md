@@ -75,6 +75,15 @@ static map data
 
 The route should be the durable source of truth for selected places. The selected marker should be derived from the current Vike route and exposed to the page through Vike's page context/data mechanism.
 
+Current implementation note:
+
+- The canonical detail route is `/location/@id`.
+- Categories are used for grouping/filtering/marker styling, not for URL structure.
+- A marker can belong to multiple categories through `categoryIds`; `categoryIds[0]` is the primary visual category.
+- Overview camera state should fit the calculated bounds of all markers, not use a fixed center/zoom.
+- `pages/(map)/+Layout.tsx` is the single owner that writes `cameraIntent`; page data supplies map state, and the client-only map only applies the current intent.
+- Drawer-related layout code should use drawer naming, not sidebar naming.
+
 ## Map integration rules
 
 ### Browser-only MapLibre
@@ -168,7 +177,7 @@ Expected behavior:
 
 - Full viewport map.
 - Shows all configured markers.
-- Uses an overview center and zoom that makes the dataset understandable.
+- Fits the calculated bounds of all configured markers with the current drawer-safe padding.
 - No selected marker is required.
 - Clicking a marker navigates to its dynamic Vike route.
 - The route, not global state, determines the selected detail page.
@@ -178,8 +187,7 @@ Suggested homepage map state:
 ```ts
 {
   mode: 'overview',
-  center: [13.0, 50.9],
-  zoom: 7,
+  bounds: getMarkerBounds(allMapMarkers),
   selectedMarker: null,
   visibleMarkers: allMapMarkers
 }
@@ -627,7 +635,7 @@ Example:
 
 ```ts
 export function getMapPointRoute(point: MapPoint, category: MapCategory) {
-  return `/places/${category.slug}/${point.slug}`
+  return `/location/${point.id}`
 }
 ```
 
@@ -642,6 +650,16 @@ Recommended route shape:
   Fullscreen overview map
 
 /places/@categorySlug/@pointSlug
+  Detail page for one selected marker
+```
+
+The current route shape is:
+
+```txt
+/map
+  Fullscreen overview map fitted to all marker bounds
+
+/location/@id
   Detail page for one selected marker
 ```
 
@@ -666,28 +684,28 @@ Use a route string or a lightweight route function.
 A simple route string is acceptable:
 
 ```ts
-// pages/places/@categorySlug/@pointSlug/+config.ts
+// pages/(map)/location/@id/+config.ts
 import type { Config } from 'vike/types'
 
 export default {
-  route: '/places/@categorySlug/@pointSlug',
+  route: '/location/@id',
 } satisfies Config
 ```
 
 If validation against the static hierarchy is needed at route-match time, use a route function, but keep it lightweight. Vike executes route functions during navigation, so do not import heavy map rendering code there.
 
 ```ts
-// pages/places/+route.ts
+// pages/(map)/location/+route.ts
 import { resolveRoute } from 'vike/routing'
 import type { PageContext } from 'vike/types'
-import { findMapPointByRouteParams } from '@/root/data/map-resolver'
+import { findMarkerByRouteParams } from '@/data/map-resolver'
 
 export function route(pageContext: PageContext) {
-  const result = resolveRoute('/places/@categorySlug/@pointSlug', pageContext.urlPathname)
+  const result = resolveRoute('/location/@id', pageContext.urlPathname)
 
   if (!result.match) return false
 
-  const point = findMapPointByRouteParams(result.routeParams)
+  const point = findMarkerByRouteParams(result.routeParams)
 
   if (!point) return false
 
@@ -708,12 +726,12 @@ Use `+data.ts` for selected marker resolution and expose it through Vike's page 
 Example:
 
 ```ts
-// pages/places/@categorySlug/@pointSlug/+data.ts
+// pages/(map)/location/@id/+data.ts
 import type { PageContext } from 'vike/types'
-import { findMapPointByRouteParams, getAllMapPoints } from '@/root/data/map-resolver'
+import { findMarkerByRouteParams, getAllMarkers, getMarkerBounds } from '@/data/map-resolver'
 
 export function data(pageContext: PageContext) {
-  const selectedMarker = findMapPointByRouteParams(pageContext.routeParams)
+  const selectedMarker = findMarkerByRouteParams(pageContext.routeParams)
 
   if (!selectedMarker) {
     throw new Error('Map point not found')
@@ -721,7 +739,8 @@ export function data(pageContext: PageContext) {
 
   return {
     selectedMarker,
-    markers: getAllMapPoints(),
+    markers: getAllMarkers(),
+    markerBounds: getMarkerBounds(getAllMarkers()),
     mapView: {
       mode: 'detail',
       center: selectedMarker.coordinates,
@@ -734,17 +753,19 @@ export function data(pageContext: PageContext) {
 On the homepage:
 
 ```ts
-// pages/index/+data.ts
-import { getAllMapPoints } from '@/root/data/map-resolver'
+// pages/(map)/map/+data.ts
+import { getAllMarkers, getMarkerBounds } from '@/data/map-resolver'
 
 export function data() {
+  const markers = getAllMarkers()
+
   return {
     selectedMarker: null,
-    markers: getAllMapPoints(),
+    markers,
+    markerBounds: getMarkerBounds(markers),
     mapView: {
       mode: 'overview',
-      center: [13.0, 50.9] as const,
-      zoom: 7,
+      bounds: getMarkerBounds(markers),
     },
   }
 }
@@ -964,7 +985,7 @@ pnpm add supercluster use-supercluster @math.gl/web-mercator
 pnpm add -D @types/supercluster
 ```
 
-Do not add Zustand or another global state library for the marker selection flow unless the architecture explicitly changes.
+Do not add or use Zustand or another global state library for the marker selection flow unless the architecture explicitly changes. The existing Zustand store may be used only for local map UI/camera plumbing.
 
 The Next.js starter uses Zustand, but this Vike implementation should intentionally test the route/pageContext-first approach.
 
@@ -993,7 +1014,7 @@ Do not implement these unless explicitly requested:
 - Authentication.
 - Editable marker management UI.
 - Persisted map viewport state.
-- Zustand/Redux/global state.
+- Zustand/Redux/global selected marker state.
 - Server-side MapLibre rendering.
 - Complex clustering.
 - Geolocation.
@@ -1010,6 +1031,8 @@ Before finishing any implementation work, check:
 - Do detail pages work on reload?
 - Does clicking a marker navigate to a stable route?
 - Is selected marker data derived from the route/pageContext/data flow?
+- Does overview fit the calculated marker bounds, including the relevant drawer padding?
+- Is `cameraIntent` set up by the map layout only once per stable intent id?
 - Is the map fullscreen on the homepage?
 - Is the map smaller and centered on detail pages?
 - Is the static marker dataset the single source of truth?
