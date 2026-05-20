@@ -1,7 +1,8 @@
 import { useData } from 'vike-react/useData'
 
+import { getAppHref } from '@/data/app-url'
 import type { MapPageData } from '@/data/map-page-data'
-import { getMarkerCategories, getMarkerRoute } from '@/data/map-resolver'
+import { getMarkerCategories, getMarkerHref } from '@/data/map-resolver'
 
 const LocationPage = () => {
   const { markers, selectedMarker } = useData<MapPageData>()
@@ -36,10 +37,10 @@ const LocationPage = () => {
         </div>
       </dl>
       <div className="flex flex-wrap gap-2">
-        <a className="btn btn-primary w-fit" href={getMarkerRoute(nextMarker)}>
+        <a className="btn btn-primary w-fit" href={getMarkerHref(nextMarker)}>
           Open {nextMarker.title}
         </a>
-        <a className="btn btn-outline w-fit" href="/map">
+        <a className="btn btn-outline w-fit" href={getAppHref('/map')}>
           Overview
         </a>
       </div>

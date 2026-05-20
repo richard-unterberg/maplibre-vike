@@ -1,12 +1,13 @@
 import Limit from '@/components/Limit'
 import ThemeToggle from '@/components/ThemeToggle'
+import { getAppHref } from '@/data/app-url'
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen bg-base-100 text-base-content">
       <header className="fixed top-0 left-0 z-50 h-16 w-full border-base-muted-light border-b bg-base-100/95">
         <Limit className="mx-auto flex h-full w-full items-center justify-between">
-          <a className="font-semibold text-base-content" href="/map">
+          <a className="font-semibold text-base-content" href={getAppHref('/map')}>
             maplibre-vike
           </a>
           <ThemeToggle />

@@ -3,7 +3,7 @@ import { useData } from 'vike-react/useData'
 
 import { useMapStore } from '@/components/map/map-store'
 import type { MapPageData } from '@/data/map-page-data'
-import { getMarkerRoute, getMarkersByCategory } from '@/data/map-resolver'
+import { getMarkerHref, getMarkersByCategory } from '@/data/map-resolver'
 
 const MapPage = () => {
   const { categories, markers } = useData<MapPageData>()
@@ -70,7 +70,7 @@ const MapPage = () => {
 
           <div className="mt-4 flex max-h-[42dvh] flex-wrap gap-2 overflow-y-auto pr-1">
             {filteredMarkers.map((marker) => (
-              <a className="btn btn-sm btn-outline" href={getMarkerRoute(marker)} key={marker.id}>
+              <a className="btn btn-sm btn-outline" href={getMarkerHref(marker)} key={marker.id}>
                 {marker.title}
               </a>
             ))}

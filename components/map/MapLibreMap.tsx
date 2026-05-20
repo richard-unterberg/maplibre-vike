@@ -17,7 +17,7 @@ import {
 } from '@/components/map/map-types'
 import { getCurrentThemePreference } from '@/components/themeAppearance'
 import type { MapCategory, MapMarker } from '@/data/constants'
-import { getMarkerRoute, getPrimaryMarkerCategory } from '@/data/map-resolver'
+import { getMarkerHref, getPrimaryMarkerCategory } from '@/data/map-resolver'
 
 interface MapLibreMapProps {
   cameraIntent: MapCameraIntent
@@ -291,7 +291,7 @@ const MapLibreMap = ({ cameraIntent: initialCameraIntentProp, markers, selectedM
       }
 
       event.preventDefault()
-      void navigate(getMarkerRoute(marker))
+      void navigate(getMarkerHref(marker))
     }
 
     const handleMarkerHover = (event: MapMouseEvent) => {

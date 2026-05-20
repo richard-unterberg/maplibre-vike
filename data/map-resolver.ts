@@ -1,4 +1,5 @@
 import type { MapBounds } from '@/components/map/map-types'
+import { getAppHref } from '@/data/app-url'
 import { MAP_CATEGORIES, MAP_MARKERS, type MapCategory, type MapCategoryId, type MapMarker } from '@/data/constants'
 
 export interface GroupedMapMarkers {
@@ -14,7 +15,9 @@ export const getAllCategories = (): MapCategory[] => [...MAP_CATEGORIES]
 
 export const getAllMarkers = (): MapMarker[] => [...MAP_MARKERS]
 
-export const getMarkerRoute = (marker: Pick<MapMarker, 'id'>) => `/location/${marker.id}`
+export const getMarkerRoute = (marker: Pick<MapMarker, 'id'>): `/location/${string}` => `/location/${marker.id}`
+
+export const getMarkerHref = (marker: Pick<MapMarker, 'id'>) => getAppHref(getMarkerRoute(marker))
 
 const findMarkerById = (id?: string | null): MapMarker | null => {
   if (!id) {

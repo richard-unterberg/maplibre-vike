@@ -19,7 +19,11 @@ export const pathAliases = Object.entries(tsConf.compilerOptions.paths).map(([ke
   return { find: key, replacement: path.resolve(__dirname, value) }
 })
 
+const pagesBasePath = process.env.PAGES_BASE_PATH?.replace(/\/$/, '')
+const base = pagesBasePath ? `${pagesBasePath}/` : '/'
+
 export default defineConfig({
+  base,
   plugins: [vike(), react(), tailwindcss()],
   optimizeDeps: {
     exclude: ['vike-react/ClientOnly'],
