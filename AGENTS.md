@@ -78,11 +78,29 @@ The route should be the durable source of truth for selected places. The selecte
 Current implementation note:
 
 - The canonical detail route is `/location/@id`.
+- English is the default locale and uses unprefixed URLs such as `/map` and `/location/@id`; German uses `/de/...`.
+- Locale is derived in `pages/+onBeforeRoute.ts`, exposed as `pageContext.locale`, and used by Vike data functions to return localized strings.
+- Raw marker/category data may store `LocaleString` values, but page data should expose render-ready strings for UI components.
 - Categories are used for grouping/filtering/marker styling, not for URL structure.
 - A marker can belong to multiple categories through `categoryIds`; `categoryIds[0]` is the primary visual category.
 - Overview camera state should fit the calculated bounds of all markers, not use a fixed center/zoom.
 - `pages/(map)/+Layout.tsx` is the single owner that writes `cameraIntent`; page data supplies map state, and the client-only map only applies the current intent.
 - Drawer-related layout code should use drawer naming, not sidebar naming.
+
+## Internationalization rules
+
+Use Vike-native routing/data mechanics for internationalization.
+
+- Supported locales are `en` and `de`; `en` is the default and must not be URL-prefixed.
+- German routes are prefixed with `/de`, while Vike route matching should continue to see the logical unprefixed route.
+- `pages/+onBeforeRoute.ts` owns locale extraction and `urlLogical`.
+- `pages/+lang.ts` owns the `<html lang>` value.
+- `pages/+config.ts` should pass `locale` to the client with `passToClient`.
+- `pages/+onPrerenderStart.ts` should duplicate prerender page contexts for `/de` instead of duplicating static route lists manually.
+- Keep translation helpers in `data/i18n.ts`: locale constants, `LocaleString`, dictionary labels, locale-aware href/path helpers, and string picking with English fallback.
+- Do not add an external i18n runtime unless the architecture explicitly changes; static data and a small dictionary are enough for the current app.
+- Locale-aware links should use `getLocalizedAppHref()` or `getMarkerHref(marker, locale)` so marker clicks and navigation preserve the current locale.
+- Avoid passing raw `LocaleString` objects into React render output. Localize marker/category page data before components consume it with `useData()`.
 
 ## Map integration rules
 
@@ -90,21 +108,23 @@ Current implementation note:
 
 MapLibre must never be imported into code that is evaluated during SSR unless it is protected by a client-only boundary.
 
-Use Vike React's `clientOnly()` helper for the MapLibre map component, because this project explicitly requires it.
+Use Vike React's `<ClientOnly>` component for the MapLibre map component. The older `clientOnly()` helper is deprecated and should not be used.
 
 Recommended pattern:
 
 ```tsx
-import { clientOnly } from 'vike-react/clientOnly'
+import { lazy, Suspense } from 'react'
+import { ClientOnly } from 'vike-react/ClientOnly'
 
-const MapLibreMap = clientOnly(() => import('@/components/map/MapLibreMap'))
+const MapLibreMap = lazy(() => import('@/components/map/MapLibreMap'))
 
 export function MapShell(props: MapShellProps) {
   return (
-    <MapLibreMap
-      fallback={<MapFallback />}
-      {...props}
-    />
+    <ClientOnly fallback={<MapFallback />}>
+      <Suspense fallback={<MapFallback />}>
+        <MapLibreMap {...props} />
+      </Suspense>
+    </ClientOnly>
   )
 }
 ```
@@ -120,7 +140,7 @@ Do not import `maplibre-gl` inside:
 - shared data/model files
 - utility files used by server-side code
 
-If a future contributor prefers Vike's newer `<ClientOnly>` component, that can be considered later, but current work should follow the explicit project requirement and use `clientOnly()`.
+Do not statically import `MapLibreMap` into `MapShell`. Use `lazy(() => import(...))` inside the client-only boundary so the browser-only module is not evaluated during SSR.
 
 ### CSS
 
@@ -261,7 +281,7 @@ Recommended hierarchy:
 ```txt
 MapSection
   -> MapCategory
-    -> MapPoint
+    -> MapMarker
 ```
 
 The hierarchy should be ergonomic to maintain and easy to resolve into flat marker arrays for MapLibre.
@@ -273,6 +293,13 @@ Suggested base types:
 ```ts
 export type Coordinates = readonly [lng: number, lat: number]
 
+export type Locale = 'en' | 'de'
+
+export type LocaleString = {
+  en: string
+  de?: string
+}
+
 export type MapCategoryId =
   | 'culture'
   | 'history'
@@ -283,25 +310,36 @@ export type MapCategoryId =
 
 export interface MapCategory {
   id: MapCategoryId
-  slug: string
+  title: LocaleString
+  description: LocaleString
+}
+
+export interface MapMarker {
+  id: string
+  title: LocaleString
+  description: LocaleString
+  categoryIds: readonly [MapCategoryId, ...MapCategoryId[]]
+  coordinates: Coordinates
+  detailZoom: number
+}
+
+export interface LocalizedMapCategory {
+  id: MapCategoryId
   title: string
   description: string
 }
 
-export interface MapPoint {
+export interface LocalizedMapMarker {
   id: string
-  slug: string
   title: string
   description: string
-  categoryId: MapCategoryId
+  categoryIds: readonly [MapCategoryId, ...MapCategoryId[]]
   coordinates: Coordinates
-  overviewZoom?: number
-  detailZoom?: number
-  route: string
+  detailZoom: number
 }
 ```
 
-Generated or derived fields are allowed, but keep the manually maintained source data readable.
+Generated or derived fields are allowed, but keep the manually maintained source data readable. Raw static data can use `LocaleString`; Vike page data should use localized types with plain strings.
 
 ### Initial categories
 
@@ -311,39 +349,69 @@ Create at least these categories:
 export const mapCategories = [
   {
     id: 'culture',
-    slug: 'culture',
-    title: 'Culture',
-    description: 'Museums, theaters, public art, and cultural landmarks.',
+    title: {
+      en: 'Culture',
+      de: 'Kultur',
+    },
+    description: {
+      en: 'Museums, theaters, public art, and cultural landmarks.',
+      de: 'Museen, Theater, Kunst im oeffentlichen Raum und kulturelle Wahrzeichen.',
+    },
   },
   {
     id: 'history',
-    slug: 'history',
-    title: 'History',
-    description: 'Historic places, monuments, and industrial heritage.',
+    title: {
+      en: 'History',
+      de: 'Geschichte',
+    },
+    description: {
+      en: 'Historic places, monuments, and industrial heritage.',
+      de: 'Historische Orte, Denkmale und Industrieerbe.',
+    },
   },
   {
     id: 'nature',
-    slug: 'nature',
-    title: 'Nature',
-    description: 'Parks, lakes, forests, viewpoints, and outdoor places.',
+    title: {
+      en: 'Nature',
+      de: 'Natur',
+    },
+    description: {
+      en: 'Parks, lakes, forests, viewpoints, and outdoor places.',
+      de: 'Parks, Seen, Waelder, Aussichtspunkte und Orte im Freien.',
+    },
   },
   {
     id: 'mobility',
-    slug: 'mobility',
-    title: 'Mobility',
-    description: 'Stations, transport hubs, bridges, and movement corridors.',
+    title: {
+      en: 'Mobility',
+      de: 'Mobilitaet',
+    },
+    description: {
+      en: 'Stations, transport hubs, bridges, and movement corridors.',
+      de: 'Bahnhoefe, Verkehrsknoten, Bruecken und Bewegungsachsen.',
+    },
   },
   {
     id: 'food',
-    slug: 'food',
-    title: 'Food',
-    description: 'Cafés, markets, restaurants, and local food spots.',
+    title: {
+      en: 'Food',
+      de: 'Essen',
+    },
+    description: {
+      en: 'Cafes, markets, restaurants, and local food spots.',
+      de: 'Cafes, Maerkte, Restaurants und lokale Essensorte.',
+    },
   },
   {
     id: 'workspace',
-    slug: 'workspace',
-    title: 'Workspace',
-    description: 'Campuses, coworking spaces, libraries, and learning places.',
+    title: {
+      en: 'Workspace',
+      de: 'Arbeitsorte',
+    },
+    description: {
+      en: 'Campuses, coworking spaces, libraries, and learning places.',
+      de: 'Campusse, Coworking-Orte, Bibliotheken und Lernorte.',
+    },
   },
 ] as const
 ```
@@ -355,13 +423,13 @@ Create 30 static map points as the initial seed dataset.
 The current suggested dataset is centered around Saxony and nearby places because it gives the map a meaningful regional spread while still allowing detail pages to focus on individual markers.
 
 ```ts
-export const mapPoints = [
+export const mapMarkers = [
   {
     id: 'chemnitz-karl-marx-monument',
     slug: 'karl-marx-monument',
     title: 'Karl Marx Monument',
     description: 'Central Chemnitz landmark and public meeting point.',
-    categoryId: 'history',
+    categoryIds: ['history'],
     coordinates: [12.9252, 50.8342],
     detailZoom: 15,
   },
@@ -370,7 +438,7 @@ export const mapPoints = [
     slug: 'theaterplatz',
     title: 'Theaterplatz Chemnitz',
     description: 'Cultural square surrounded by museums, opera, and theater.',
-    categoryId: 'culture',
+    categoryIds: ['culture'],
     coordinates: [12.9259, 50.8377],
     detailZoom: 15,
   },
@@ -379,7 +447,7 @@ export const mapPoints = [
     slug: 'schlossteich',
     title: 'Schlossteich',
     description: 'Urban lake and green recreation area in Chemnitz.',
-    categoryId: 'nature',
+    categoryIds: ['nature'],
     coordinates: [12.9139, 50.8413],
     detailZoom: 14,
   },
@@ -388,7 +456,7 @@ export const mapPoints = [
     slug: 'industrial-museum',
     title: 'Saxon Museum of Industry',
     description: 'Industrial heritage site documenting the manufacturing history of Chemnitz.',
-    categoryId: 'history',
+    categoryIds: ['history'],
     coordinates: [12.9036, 50.8238],
     detailZoom: 15,
   },
@@ -397,7 +465,7 @@ export const mapPoints = [
     slug: 'kassberg',
     title: 'Kaßberg',
     description: 'Large Gründerzeit district with dense urban architecture.',
-    categoryId: 'history',
+    categoryIds: ['history'],
     coordinates: [12.8998, 50.8339],
     detailZoom: 14,
   },
@@ -406,7 +474,7 @@ export const mapPoints = [
     slug: 'main-station',
     title: 'Chemnitz Hauptbahnhof',
     description: 'Main rail station and mobility hub.',
-    categoryId: 'mobility',
+    categoryIds: ['mobility'],
     coordinates: [12.9303, 50.8395],
     detailZoom: 15,
   },
@@ -415,7 +483,7 @@ export const mapPoints = [
     slug: 'tu-campus',
     title: 'TU Chemnitz Campus',
     description: 'University campus and learning environment.',
-    categoryId: 'workspace',
+    categoryIds: ['workspace'],
     coordinates: [12.9298, 50.8136],
     detailZoom: 15,
   },
@@ -424,7 +492,7 @@ export const mapPoints = [
     slug: 'stadtpark',
     title: 'Stadtpark Chemnitz',
     description: 'Long green corridor along the Chemnitz river.',
-    categoryId: 'nature',
+    categoryIds: ['nature'],
     coordinates: [12.8992, 50.8028],
     detailZoom: 14,
   },
@@ -433,7 +501,7 @@ export const mapPoints = [
     slug: 'markthalle',
     title: 'Chemnitz Markthalle',
     description: 'Historic market hall and food-oriented urban place.',
-    categoryId: 'food',
+    categoryIds: ['food'],
     coordinates: [12.9207, 50.8332],
     detailZoom: 15,
   },
@@ -442,7 +510,7 @@ export const mapPoints = [
     slug: 'wirkbau',
     title: 'Wirkbau Chemnitz',
     description: 'Creative and workspace-oriented industrial complex.',
-    categoryId: 'workspace',
+    categoryIds: ['workspace'],
     coordinates: [12.9018, 50.8207],
     detailZoom: 15,
   },
@@ -451,7 +519,7 @@ export const mapPoints = [
     slug: 'altstadt',
     title: 'Dresden Altstadt',
     description: 'Historic center with major cultural landmarks.',
-    categoryId: 'culture',
+    categoryIds: ['culture'],
     coordinates: [13.7416, 51.0504],
     detailZoom: 14,
   },
@@ -460,7 +528,7 @@ export const mapPoints = [
     slug: 'frauenkirche',
     title: 'Frauenkirche Dresden',
     description: 'Iconic reconstructed church in Dresden Neumarkt.',
-    categoryId: 'history',
+    categoryIds: ['history'],
     coordinates: [13.7416, 51.0519],
     detailZoom: 16,
   },
@@ -469,7 +537,7 @@ export const mapPoints = [
     slug: 'grosser-garten',
     title: 'Großer Garten Dresden',
     description: 'Large city park and outdoor recreation area.',
-    categoryId: 'nature',
+    categoryIds: ['nature'],
     coordinates: [13.7646, 51.0377],
     detailZoom: 14,
   },
@@ -478,7 +546,7 @@ export const mapPoints = [
     slug: 'neustadt',
     title: 'Dresden Neustadt',
     description: 'Dense urban quarter known for culture, nightlife, and food.',
-    categoryId: 'food',
+    categoryIds: ['food'],
     coordinates: [13.7555, 51.0663],
     detailZoom: 14,
   },
@@ -487,7 +555,7 @@ export const mapPoints = [
     slug: 'main-station',
     title: 'Dresden Hauptbahnhof',
     description: 'Major train station and regional mobility node.',
-    categoryId: 'mobility',
+    categoryIds: ['mobility'],
     coordinates: [13.7320, 51.0404],
     detailZoom: 15,
   },
@@ -496,7 +564,7 @@ export const mapPoints = [
     slug: 'augustusplatz',
     title: 'Augustusplatz Leipzig',
     description: 'Central square with university, opera, and concert hall.',
-    categoryId: 'culture',
+    categoryIds: ['culture'],
     coordinates: [12.3818, 51.3397],
     detailZoom: 15,
   },
@@ -505,7 +573,7 @@ export const mapPoints = [
     slug: 'hauptbahnhof',
     title: 'Leipzig Hauptbahnhof',
     description: 'Large railway station and commercial mobility hub.',
-    categoryId: 'mobility',
+    categoryIds: ['mobility'],
     coordinates: [12.3825, 51.3454],
     detailZoom: 15,
   },
@@ -514,7 +582,7 @@ export const mapPoints = [
     slug: 'plagwitz',
     title: 'Leipzig Plagwitz',
     description: 'Former industrial district with creative reuse and workspaces.',
-    categoryId: 'workspace',
+    categoryIds: ['workspace'],
     coordinates: [12.3336, 51.3295],
     detailZoom: 14,
   },
@@ -523,7 +591,7 @@ export const mapPoints = [
     slug: 'clara-zetkin-park',
     title: 'Clara-Zetkin-Park',
     description: 'Central green corridor and recreation park in Leipzig.',
-    categoryId: 'nature',
+    categoryIds: ['nature'],
     coordinates: [12.3578, 51.3319],
     detailZoom: 14,
   },
@@ -532,7 +600,7 @@ export const mapPoints = [
     slug: 'suedvorstadt',
     title: 'Leipzig Südvorstadt',
     description: 'Urban district with cafés, restaurants, and student life.',
-    categoryId: 'food',
+    categoryIds: ['food'],
     coordinates: [12.3730, 51.3218],
     detailZoom: 14,
   },
@@ -541,7 +609,7 @@ export const mapPoints = [
     slug: 'august-horch-museum',
     title: 'August Horch Museum Zwickau',
     description: 'Automotive history and industrial culture museum.',
-    categoryId: 'history',
+    categoryIds: ['history'],
     coordinates: [12.4875, 50.7299],
     detailZoom: 15,
   },
@@ -550,7 +618,7 @@ export const mapPoints = [
     slug: 'freiberg-dom',
     title: 'Freiberg Cathedral',
     description: 'Historic cathedral in the mining town of Freiberg.',
-    categoryId: 'history',
+    categoryIds: ['history'],
     coordinates: [13.3427, 50.9171],
     detailZoom: 15,
   },
@@ -559,7 +627,7 @@ export const mapPoints = [
     slug: 'annaberg-market',
     title: 'Annaberg-Buchholz Market Square',
     description: 'Historic town center in the Ore Mountains.',
-    categoryId: 'culture',
+    categoryIds: ['culture'],
     coordinates: [13.0031, 50.5796],
     detailZoom: 15,
   },
@@ -568,7 +636,7 @@ export const mapPoints = [
     slug: 'fichtelberg',
     title: 'Fichtelberg',
     description: 'Highest mountain in Saxony and outdoor destination.',
-    categoryId: 'nature',
+    categoryIds: ['nature'],
     coordinates: [12.9541, 50.4285],
     detailZoom: 13,
   },
@@ -577,7 +645,7 @@ export const mapPoints = [
     slug: 'albrechtsburg',
     title: 'Albrechtsburg Meissen',
     description: 'Late Gothic castle above the Elbe river.',
-    categoryId: 'history',
+    categoryIds: ['history'],
     coordinates: [13.4712, 51.1660],
     detailZoom: 15,
   },
@@ -586,7 +654,7 @@ export const mapPoints = [
     slug: 'moritzburg-castle',
     title: 'Moritzburg Castle',
     description: 'Baroque castle surrounded by ponds and landscape.',
-    categoryId: 'culture',
+    categoryIds: ['culture'],
     coordinates: [13.6806, 51.1687],
     detailZoom: 14,
   },
@@ -595,7 +663,7 @@ export const mapPoints = [
     slug: 'bastei',
     title: 'Bastei Bridge',
     description: 'Famous sandstone rock formation and viewpoint.',
-    categoryId: 'nature',
+    categoryIds: ['nature'],
     coordinates: [14.0733, 50.9616],
     detailZoom: 14,
   },
@@ -604,7 +672,7 @@ export const mapPoints = [
     slug: 'old-town',
     title: 'Görlitz Old Town',
     description: 'Historic cityscape with preserved architecture.',
-    categoryId: 'history',
+    categoryIds: ['history'],
     coordinates: [14.9874, 51.1552],
     detailZoom: 14,
   },
@@ -613,7 +681,7 @@ export const mapPoints = [
     slug: 'rabenstein-castle',
     title: 'Burg Rabenstein',
     description: 'Small castle and local nature destination near Chemnitz.',
-    categoryId: 'nature',
+    categoryIds: ['nature'],
     coordinates: [12.8154, 50.8331],
     detailZoom: 14,
   },
@@ -622,36 +690,26 @@ export const mapPoints = [
     slug: 'kuechwald',
     title: 'Küchwald Park',
     description: 'Large park and recreation area north of central Chemnitz.',
-    categoryId: 'nature',
+    categoryIds: ['nature'],
     coordinates: [12.9089, 50.8520],
     detailZoom: 14,
   },
 ] as const
 ```
 
-When adding these points to real code, derive `route` from category + slug instead of hand-writing it repeatedly.
+When adding these points to real code, derive marker routes from the marker id instead of hand-writing route strings repeatedly.
 
 Example:
 
 ```ts
-export function getMapPointRoute(point: MapPoint, category: MapCategory) {
-  return `/location/${point.id}`
+export function getMarkerRoute(marker: Pick<MapMarker, 'id'>) {
+  return `/location/${marker.id}`
 }
 ```
 
 ## Routing model
 
 Use dynamic Vike routes for marker detail pages.
-
-Recommended route shape:
-
-```txt
-/
-  Fullscreen overview map
-
-/places/@categorySlug/@pointSlug
-  Detail page for one selected marker
-```
 
 The current route shape is:
 
@@ -666,13 +724,13 @@ The current route shape is:
 A marker click should navigate to the corresponding route:
 
 ```tsx
-navigate(getMapPointRoute(point))
+navigate(getMarkerHref(marker, locale))
 ```
 
 or with normal links where possible:
 
 ```tsx
-<a href={getMapPointRoute(point)}>Open place</a>
+<a href={getMarkerHref(marker, locale)}>Open place</a>
 ```
 
 Avoid putting selected marker state only into client state. Deep links should work after reload, SSR, and prerender.
@@ -698,14 +756,14 @@ If validation against the static hierarchy is needed at route-match time, use a 
 // pages/(map)/location/+route.ts
 import { resolveRoute } from 'vike/routing'
 import type { PageContext } from 'vike/types'
-import { findMarkerByRouteParams } from '@/data/map-resolver'
+import { getAllMarkers } from '@/data/map-resolver'
 
 export function route(pageContext: PageContext) {
   const result = resolveRoute('/location/@id', pageContext.urlPathname)
 
   if (!result.match) return false
 
-  const point = findMarkerByRouteParams(result.routeParams)
+  const point = getAllMarkers().find((marker) => marker.id === result.routeParams.id)
 
   if (!point) return false
 
@@ -728,23 +786,36 @@ Example:
 ```ts
 // pages/(map)/location/@id/+data.ts
 import type { PageContext } from 'vike/types'
-import { findMarkerByRouteParams, getAllMarkers, getMarkerBounds } from '@/data/map-resolver'
+import { normalizeLocale } from '@/data/i18n'
+import {
+  findLocalizedMarkerByRouteParams,
+  getAllMarkers,
+  getLocalizedCategories,
+  getLocalizedGroupedMarkers,
+  getLocalizedMarkers,
+  getMarkerBounds,
+} from '@/data/map-resolver'
 
 export function data(pageContext: PageContext) {
-  const selectedMarker = findMarkerByRouteParams(pageContext.routeParams)
+  const locale = normalizeLocale(pageContext.locale)
+  const selectedMarker = findLocalizedMarkerByRouteParams(pageContext.routeParams, locale)
 
   if (!selectedMarker) {
     throw new Error('Map point not found')
   }
 
+  const rawMarkers = getAllMarkers()
+
   return {
+    categories: getLocalizedCategories(locale),
+    groupedMarkers: getLocalizedGroupedMarkers(locale),
     selectedMarker,
-    markers: getAllMarkers(),
-    markerBounds: getMarkerBounds(getAllMarkers()),
+    markers: getLocalizedMarkers(locale),
+    markerBounds: getMarkerBounds(rawMarkers),
     mapView: {
       mode: 'detail',
       center: selectedMarker.coordinates,
-      zoom: selectedMarker.detailZoom ?? 13,
+      zoom: selectedMarker.detailZoom,
     },
   }
 }
@@ -754,18 +825,29 @@ On the homepage:
 
 ```ts
 // pages/(map)/map/+data.ts
-import { getAllMarkers, getMarkerBounds } from '@/data/map-resolver'
+import type { PageContext } from 'vike/types'
+import { normalizeLocale } from '@/data/i18n'
+import {
+  getAllMarkers,
+  getLocalizedCategories,
+  getLocalizedGroupedMarkers,
+  getLocalizedMarkers,
+  getMarkerBounds,
+} from '@/data/map-resolver'
 
-export function data() {
-  const markers = getAllMarkers()
+export function data(pageContext: PageContext) {
+  const locale = normalizeLocale(pageContext.locale)
+  const rawMarkers = getAllMarkers()
 
   return {
+    categories: getLocalizedCategories(locale),
+    groupedMarkers: getLocalizedGroupedMarkers(locale),
     selectedMarker: null,
-    markers,
-    markerBounds: getMarkerBounds(markers),
+    markers: getLocalizedMarkers(locale),
+    markerBounds: getMarkerBounds(rawMarkers),
     mapView: {
       mode: 'overview',
-      bounds: getMarkerBounds(markers),
+      bounds: getMarkerBounds(rawMarkers),
     },
   }
 }
@@ -798,7 +880,7 @@ components/
 Responsibilities:
 
 - SSR-safe wrapper.
-- Uses `clientOnly()` to load `MapLibreMap`.
+- Uses `<ClientOnly>` and `lazy()` to load `MapLibreMap`.
 - Owns fallback markup.
 - Accepts data already resolved by Vike.
 
@@ -883,7 +965,7 @@ Important differences in this project:
 - This is Vike, not Next.js.
 - Prefer Vike route/data/pageContext mechanics over Zustand for selected marker/page state.
 - Preserve SSR/prerender compatibility.
-- Use Vike `clientOnly()` for the browser-only map.
+- Use Vike `<ClientOnly>` for the browser-only map.
 - Do not make the map architecture depend on Next.js routing patterns.
 
 If code is copied or translated from the starter, adapt naming, routing, imports, and state flow to the Vike architecture.
@@ -921,14 +1003,13 @@ Therefore:
 
 - Every dynamic route generated from static marker data should be prerender-compatible.
 - Route generation should derive URLs from the static TypeScript marker dataset.
+- The default English locale should prerender unprefixed URLs; German should prerender `/de/...` URLs through the global `pages/+onPrerenderStart.ts` duplication hook.
 - The homepage should prerender with a map fallback and hydrate the interactive map on the client.
 - Detail pages should prerender with the selected marker content and a map fallback.
 - No SSR code should require browser-only APIs.
 - No page should depend on runtime-only remote marker data yet.
 
-If explicit prerender URL generation is needed later, derive it from the same static map data source.
-
-Do not duplicate route lists manually.
+Do not duplicate route lists manually. Per-page prerender hooks should return canonical unprefixed marker URLs, while the global prerender hook adds locale-prefixed variants.
 
 ## Error handling
 
@@ -942,11 +1023,13 @@ If a route references an unknown category or marker slug:
 Prefer stable helper functions:
 
 ```ts
-findCategoryBySlug(categorySlug)
-findMapPointBySlug(categorySlug, pointSlug)
-findMapPointByRouteParams(routeParams)
-getAllMapPoints()
-getMapPointRoute(point)
+findLocalizedMarkerByRouteParams(routeParams, locale)
+getAllMarkers()
+getLocalizedCategories(locale)
+getLocalizedMarkers(locale)
+getMarkerRoute(marker)
+getMarkerHref(marker, locale)
+getMarkerBounds(markers)
 ```
 
 ## TypeScript rules
@@ -987,23 +1070,27 @@ pnpm add -D @types/supercluster
 
 Do not add or use Zustand or another global state library for the marker selection flow unless the architecture explicitly changes. The existing Zustand store may be used only for local map UI/camera plumbing.
 
+Do not add the `i18n` npm package or another external translation runtime for the current static marker/content flow. Use Vike routing, `pageContext.locale`, localized static data, and `data/i18n.ts`.
+
 The Next.js starter uses Zustand, but this Vike implementation should intentionally test the route/pageContext-first approach.
 
 ## Suggested implementation order
 
 1. Add MapLibre dependency.
 2. Create static categories and 30 map points.
-3. Create resolver helpers.
-4. Add homepage `+data.ts`.
-5. Add detail route and `+data.ts`.
-6. Add SSR-safe `MapShell` using `clientOnly()`.
-7. Add browser-only `MapLibreMap`.
-8. Render fullscreen homepage map.
-9. Render smaller detail-page map centered on selected marker.
-10. Add marker click navigation.
-11. Add marker detail page content.
-12. Add prerender URL derivation if needed.
-13. Add clustering only after the non-clustered route/pageContext flow works.
+3. Create locale helpers in `data/i18n.ts`.
+4. Create raw and localized resolver helpers.
+5. Add Vike locale extraction in `pages/+onBeforeRoute.ts`.
+6. Add homepage `+data.ts`.
+7. Add detail route and `+data.ts`.
+8. Add SSR-safe `MapShell` using `<ClientOnly>` and `lazy()`.
+9. Add browser-only `MapLibreMap`.
+10. Render fullscreen homepage map.
+11. Render smaller detail-page map centered on selected marker.
+12. Add locale-preserving marker click navigation.
+13. Add marker detail page content.
+14. Add prerender URL derivation and locale duplication.
+15. Add clustering only after the non-clustered route/pageContext flow works.
 
 ## Non-goals for the first iteration
 
@@ -1028,8 +1115,12 @@ Before finishing any implementation work, check:
 - Does `pnpm verify` pass?
 - Does SSR avoid importing MapLibre directly?
 - Does the homepage prerender?
+- Do default English pages render at unprefixed URLs and German pages render at `/de/...` URLs?
+- Do UI labels and marker/category titles/descriptions come from localized page data or the dictionary instead of raw `LocaleString` objects?
+- Does `<html lang>` follow `pageContext.locale`?
 - Do detail pages work on reload?
 - Does clicking a marker navigate to a stable route?
+- Does marker navigation preserve the active locale?
 - Is selected marker data derived from the route/pageContext/data flow?
 - Does overview fit the calculated marker bounds, including the relevant drawer padding?
 - Is `cameraIntent` set up by the map layout only once per stable intent id?

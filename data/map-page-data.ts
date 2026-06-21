@@ -1,6 +1,5 @@
 import type { Coordinates, MapBounds } from '@/components/map/map-types'
-import type { MapCategory, MapMarker } from '@/data/constants'
-import type { GroupedMapMarkers } from '@/data/map-resolver'
+import type { LocalizedGroupedMapMarkers, LocalizedMapCategory, LocalizedMapMarker } from '@/data/map-resolver'
 
 type MapPageView =
   | {
@@ -14,10 +13,10 @@ type MapPageView =
     }
 
 export interface MapPageData {
-  categories: MapCategory[]
-  groupedMarkers: GroupedMapMarkers[]
+  categories: LocalizedMapCategory[]
+  groupedMarkers: LocalizedGroupedMapMarkers[]
   mapView: MapPageView
   markerBounds: MapBounds
-  markers: MapMarker[]
-  selectedMarker: MapMarker | null
+  markers: LocalizedMapMarker[]
+  selectedMarker: LocalizedMapMarker | null
 }

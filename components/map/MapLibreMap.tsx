@@ -16,14 +16,16 @@ import {
   type RequiredMapPadding,
 } from '@/components/map/map-types'
 import { getCurrentThemePreference } from '@/components/themeAppearance'
-import type { MapCategory, MapMarker } from '@/data/constants'
+import type { Locale } from '@/data/i18n'
 import { getMarkerHref, getPrimaryMarkerCategory } from '@/data/map-resolver'
+import type { LocalizedMapCategory, LocalizedMapMarker } from '@/data/map-resolver'
 
 interface MapLibreMapProps {
   cameraIntent: MapCameraIntent
-  categories: MapCategory[]
-  markers: MapMarker[]
-  selectedMarker: MapMarker | null
+  categories: LocalizedMapCategory[]
+  locale: Locale
+  markers: LocalizedMapMarker[]
+  selectedMarker: LocalizedMapMarker | null
 }
 
 const toMapLibreCenter = (center: Coordinates): [number, number] => [center[0], center[1]]
@@ -50,18 +52,18 @@ const markerColors = {
   mobility: '#0369a1',
   nature: '#15803d',
   workspace: '#0f766e',
-} as const satisfies Record<MapCategory['id'], string>
+} as const satisfies Record<LocalizedMapCategory['id'], string>
 
 interface MarkerFeatureProperties {
-  categoryId: MapCategory['id']
+  categoryId: LocalizedMapCategory['id']
   color: string
   id: string
   selected: boolean
 }
 
 const getMarkerFeatureCollection = (
-  markers: MapMarker[],
-  selectedMarker: MapMarker | null,
+  markers: LocalizedMapMarker[],
+  selectedMarker: LocalizedMapMarker | null,
 ): GeoJSON.FeatureCollection<GeoJSON.Point, MarkerFeatureProperties> => ({
   features: markers.map((marker) => {
     const categoryId = getPrimaryMarkerCategory(marker).id
@@ -151,7 +153,7 @@ const applyBoundsIntent = (map: MapLibreInstance, cameraIntent: MapCameraIntent)
   })
 }
 
-const MapLibreMap = ({ cameraIntent: initialCameraIntentProp, markers, selectedMarker }: MapLibreMapProps) => {
+const MapLibreMap = ({ cameraIntent: initialCameraIntentProp, locale, markers, selectedMarker }: MapLibreMapProps) => {
   const cameraIntent = useMapStore((state) => state.cameraIntent)
   const containerRef = useRef<HTMLDivElement>(null)
   const initialCameraIntent = initialCameraIntentProp ?? useMapStore.getState().cameraIntent
@@ -243,25 +245,57 @@ const MapLibreMap = ({ cameraIntent: initialCameraIntentProp, markers, selectedM
       return
     }
 
-    const syncMarkerSource = () => {
-      if (!map.isStyleLoaded()) {
+    const mapInstance = map
+    let animationFrameId: number | null = null
+    let disposed = false
+
+    function scheduleMarkerSourceSync() {
+      if (animationFrameId !== null) {
         return
       }
 
-      ensureMarkerLayers(map)
-
-      const source = map.getSource(MARKER_SOURCE_ID) as GeoJSONSource | undefined
-
-      source?.setData(getMarkerFeatureCollection(markers, selectedMarker))
+      animationFrameId = window.requestAnimationFrame(syncMarkerSource)
     }
 
-    map.on('load', syncMarkerSource)
-    map.on('style.load', syncMarkerSource)
-    syncMarkerSource()
+    function syncMarkerSource() {
+      animationFrameId = null
+
+      if (disposed) {
+        return
+      }
+
+      try {
+        ensureMarkerLayers(mapInstance)
+
+        const source = mapInstance.getSource(MARKER_SOURCE_ID) as GeoJSONSource | undefined
+
+        source?.setData(getMarkerFeatureCollection(markers, selectedMarker))
+      } catch (error) {
+        if (!mapInstance.isStyleLoaded()) {
+          return
+        }
+
+        throw error
+      }
+    }
+
+    mapInstance.on('load', scheduleMarkerSourceSync)
+    mapInstance.on('style.load', scheduleMarkerSourceSync)
+    mapInstance.on('styledata', scheduleMarkerSourceSync)
+
+    if (mapInstance.isStyleLoaded()) {
+      scheduleMarkerSourceSync()
+    }
 
     return () => {
-      map.off('load', syncMarkerSource)
-      map.off('style.load', syncMarkerSource)
+      disposed = true
+      mapInstance.off('load', scheduleMarkerSourceSync)
+      mapInstance.off('style.load', scheduleMarkerSourceSync)
+      mapInstance.off('styledata', scheduleMarkerSourceSync)
+
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId)
+      }
     }
   }, [mapReady, markers, selectedMarker])
 
@@ -291,7 +325,7 @@ const MapLibreMap = ({ cameraIntent: initialCameraIntentProp, markers, selectedM
       }
 
       event.preventDefault()
-      void navigate(getMarkerHref(marker))
+      void navigate(getMarkerHref(marker, locale))
     }
 
     const handleMarkerHover = (event: MapMouseEvent) => {
@@ -306,7 +340,7 @@ const MapLibreMap = ({ cameraIntent: initialCameraIntentProp, markers, selectedM
       map.off('mousemove', handleMarkerHover)
       map.getCanvas().style.cursor = ''
     }
-  }, [mapReady, markers])
+  }, [locale, mapReady, markers])
 
   useEffect(() => {
     const map = mapRef.current

@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useData } from 'vike-react/useData'
+import { usePageContext } from 'vike-react/usePageContext'
 import Limit from '@/components/Limit'
 import MapShell from '@/components/map/MapShell'
 import { useMapStore } from '@/components/map/map-store'
@@ -11,6 +12,7 @@ import {
   normalizeMapPadding,
 } from '@/components/map/map-types'
 import { useSyncMapCameraIntent } from '@/components/map/useSyncMapCameraIntent'
+import { normalizeLocale, t } from '@/data/i18n'
 import type { MapPageData } from '@/data/map-page-data'
 
 const drawerTransition = {
@@ -67,6 +69,8 @@ const getCenterIntentId = (
 
 const MapLayout = ({ children }: { children: React.ReactNode }) => {
   const { categories, mapView, markerBounds, markers, selectedMarker } = useData<MapPageData>()
+  const pageContext = usePageContext()
+  const locale = normalizeLocale(pageContext.locale)
   const routeView: MapView = mapView.mode === 'overview' ? 'overview' : 'detail'
   const storedView = useMapStore((state) => state.view)
   const setView = useMapStore((state) => state.setView)
@@ -159,6 +163,7 @@ const MapLayout = ({ children }: { children: React.ReactNode }) => {
         <MapShell
           cameraIntent={cameraIntent}
           categories={categories}
+          locale={locale}
           markers={markers}
           selectedMarker={selectedMarker}
         />
@@ -171,7 +176,7 @@ const MapLayout = ({ children }: { children: React.ReactNode }) => {
           onClick={() => setView(view === 'mapFocus' ? 'detail' : 'mapFocus')}
           type="button"
         >
-          {view === 'mapFocus' ? 'Dock' : 'Map'}
+          {view === 'mapFocus' ? t('dock', locale) : t('map', locale)}
         </button>
       )}
 

@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 import vike from 'vike/plugin'
 import { defineConfig } from 'vite'
 
+import { viteBeastiesOutputPlugin } from './scripts/critical'
 import tsConf from './tsconfig.json' with { type: 'json' }
 
 const __filename = fileURLToPath(import.meta.url)
@@ -24,7 +25,7 @@ const base = pagesBasePath ? `${pagesBasePath}/` : '/'
 
 export default defineConfig({
   base,
-  plugins: [vike(), react(), tailwindcss()],
+  plugins: [vike(), react(), tailwindcss(), viteBeastiesOutputPlugin()],
   optimizeDeps: {
     exclude: ['vike-react/ClientOnly'],
   },

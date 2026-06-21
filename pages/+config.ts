@@ -5,6 +5,7 @@ const config: Config = {
   title: 'maplibre-vike',
   prerender: true,
   extends: [vikeReact],
+  passToClient: ['locale'],
   htmlAttributes: {
     'data-theme': 'maplibre-vike-light',
   },

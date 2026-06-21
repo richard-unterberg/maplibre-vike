@@ -1,22 +1,26 @@
 import { useData } from 'vike-react/useData'
+import { usePageContext } from 'vike-react/usePageContext'
 
-import { getAppHref } from '@/data/app-url'
+import { getLocalizedAppHref } from '@/data/app-url'
+import { normalizeLocale, t } from '@/data/i18n'
 import type { MapPageData } from '@/data/map-page-data'
-import { getMarkerCategories, getMarkerHref } from '@/data/map-resolver'
+import { getLocalizedMarkerCategories, getMarkerHref } from '@/data/map-resolver'
 
 const LocationPage = () => {
   const { markers, selectedMarker } = useData<MapPageData>()
+  const pageContext = usePageContext()
+  const locale = normalizeLocale(pageContext.locale)
 
   if (!selectedMarker) {
     return null
   }
 
-  const categories = getMarkerCategories(selectedMarker)
+  const categories = getLocalizedMarkerCategories(selectedMarker, locale)
   const nextMarker = markers[(markers.findIndex((marker) => marker.id === selectedMarker.id) + 1) % markers.length]
 
   return (
     <article className="flex flex-col gap-4 py-6">
-      <p className="text-base-muted text-sm">Chemnitz location</p>
+      <p className="text-base-muted text-sm">{t('chemnitzLocation', locale)}</p>
       <div className="flex flex-wrap items-center gap-2">
         {categories.map((category) => (
           <span className="badge badge-outline" key={category.id}>
@@ -28,20 +32,20 @@ const LocationPage = () => {
       <p>{selectedMarker.description}</p>
       <dl className="grid gap-2 text-sm">
         <div>
-          <dt className="font-semibold">Coordinates</dt>
+          <dt className="font-semibold">{t('coordinates', locale)}</dt>
           <dd className="text-base-muted">{selectedMarker.coordinates.join(', ')}</dd>
         </div>
         <div>
-          <dt className="font-semibold">Map zoom</dt>
+          <dt className="font-semibold">{t('mapZoom', locale)}</dt>
           <dd className="text-base-muted">{selectedMarker.detailZoom}</dd>
         </div>
       </dl>
       <div className="flex flex-wrap gap-2">
-        <a className="btn btn-primary w-fit" href={getMarkerHref(nextMarker)}>
-          Open {nextMarker.title}
+        <a className="btn btn-primary w-fit" href={getMarkerHref(nextMarker, locale)}>
+          {t('open', locale)} {nextMarker.title}
         </a>
-        <a className="btn btn-outline w-fit" href={getAppHref('/map')}>
-          Overview
+        <a className="btn btn-outline w-fit" href={getLocalizedAppHref('/map', locale)}>
+          {t('overview', locale)}
         </a>
       </div>
     </article>
