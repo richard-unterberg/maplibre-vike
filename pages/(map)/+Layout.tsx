@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useMemo, useState } from 'react'
 import { useData } from 'vike-react/useData'
 import { usePageContext } from 'vike-react/usePageContext'
+
 import Limit from '@/components/Limit'
 import MapShell from '@/components/map/MapShell'
 import { useMapStore } from '@/components/map/map-store'
@@ -68,7 +69,7 @@ const getCenterIntentId = (
 }
 
 const MapLayout = ({ children }: { children: React.ReactNode }) => {
-  const { categories, mapView, markerBounds, markers, selectedMarker } = useData<MapPageData>()
+  const { mapView, markerBounds, markers, selectedMarker } = useData<MapPageData>()
   const pageContext = usePageContext()
   const locale = normalizeLocale(pageContext.locale)
   const routeView: MapView = mapView.mode === 'overview' ? 'overview' : 'detail'
@@ -160,13 +161,7 @@ const MapLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="relative h-[calc(100dvh-16*var(--spacing))] min-w-0 overflow-hidden">
       <div className="absolute inset-0 z-0 overflow-hidden">
-        <MapShell
-          cameraIntent={cameraIntent}
-          categories={categories}
-          locale={locale}
-          markers={markers}
-          selectedMarker={selectedMarker}
-        />
+        <MapShell cameraIntent={cameraIntent} locale={locale} markers={markers} selectedMarker={selectedMarker} />
       </div>
 
       {view !== 'overview' && (

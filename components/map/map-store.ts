@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 import type { MapCameraIntent, MapView } from '@/components/map/map-types'
-import type { MapCategoryId } from '@/data/constants'
+import type { MapCategoryId } from '@/data/map-data-types'
 
 interface MapStoreState {
   activeCategoryId: MapCategoryId | null

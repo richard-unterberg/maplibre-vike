@@ -37,7 +37,6 @@ Use the existing project stack and conventions.
 Useful project commands:
 
 ```sh
-pnpm dev
 pnpm build
 pnpm preview
 pnpm typecheck
@@ -48,6 +47,7 @@ pnpm verify
 ```
 
 `pnpm verify` should remain the preferred full local validation command.
+Do not start `pnpm dev` as routine validation; only start a dev server when the user explicitly asks for a browser-testable local URL.
 
 ## Important architectural goal
 
@@ -80,6 +80,8 @@ Current implementation note:
 - The canonical detail route is `/location/@id`.
 - English is the default locale and uses unprefixed URLs such as `/map` and `/location/@id`; German uses `/de/...`.
 - Locale is derived in `pages/+onBeforeRoute.ts`, exposed as `pageContext.locale`, and used by Vike data functions to return localized strings.
+- Map data is a simulated repository dataset under `public/data`; page data hooks load dataset slices through `data/map-dataset.ts` instead of importing marker constants.
+- `public/data/markers/overview.json` contains lightweight overview marker records, while `public/data/markers/{id}.json` contains full marker records. Overview records and full marker files must share the same stable `id`.
 - Raw marker/category data may store `LocaleString` values, but page data should expose render-ready strings for UI components.
 - Categories are used for grouping/filtering/marker styling, not for URL structure.
 - A marker can belong to multiple categories through `categoryIds`; `categoryIds[0]` is the primary visual category.
@@ -249,42 +251,29 @@ The map container on detail pages can be smaller, for example:
 
 ## Data modeling
 
-Map marker data is static for now and should be stored in TypeScript files.
+Map marker data is static for now and should be stored as JSON under `public/data` to simulate repository/API-style reads without adding a remote service.
 
-Do not fetch marker data from an API yet.
+Do not import the complete marker/category dataset into React components, route functions, or generic helpers. Use `+data.ts` hooks to load the smallest dataset slice needed through `data/map-dataset.ts`.
 
-Recommended files:
+Current files:
 
 ```txt
+public/data/
+  categories.json
+  markers/
+    overview.json
+    {id}.json
 data/
-  map-categories.ts
-  map-points.ts
-  map-tree.ts
+  map-data-types.ts
+  map-dataset.ts
   map-resolver.ts
 ```
 
-or, if keeping the project flatter:
+`overview.json` should contain records for map-wide rendering and navigation only: `id`, localized `title`, `categoryIds`, `coordinates`, and `detailZoom`.
 
-```txt
-map/
-  data/
-    categories.ts
-    points.ts
-    tree.ts
-    resolver.ts
-```
+Each full marker file should contain the same identity/map fields plus full localized `description`. A marker route is valid only when the full marker file exists and its `id` is present in `overview.json`.
 
-Use a hierarchical model because the route structure should reflect a stable content/map taxonomy.
-
-Recommended hierarchy:
-
-```txt
-MapSection
-  -> MapCategory
-    -> MapMarker
-```
-
-The hierarchy should be ergonomic to maintain and easy to resolve into flat marker arrays for MapLibre.
+The dataset should remain ergonomic to maintain and easy to resolve into flat marker arrays for MapLibre.
 
 ### Types
 
@@ -323,6 +312,14 @@ export interface MapMarker {
   detailZoom: number
 }
 
+export interface OverviewMapMarker {
+  id: string
+  title: LocaleString
+  categoryIds: readonly [MapCategoryId, ...MapCategoryId[]]
+  coordinates: Coordinates
+  detailZoom: number
+}
+
 export interface LocalizedMapCategory {
   id: MapCategoryId
   title: string
@@ -336,6 +333,16 @@ export interface LocalizedMapMarker {
   categoryIds: readonly [MapCategoryId, ...MapCategoryId[]]
   coordinates: Coordinates
   detailZoom: number
+  primaryCategoryId: MapCategoryId
+}
+
+export interface LocalizedOverviewMapMarker {
+  id: string
+  title: string
+  categoryIds: readonly [MapCategoryId, ...MapCategoryId[]]
+  coordinates: Coordinates
+  detailZoom: number
+  primaryCategoryId: MapCategoryId
 }
 ```
 
@@ -750,28 +757,7 @@ export default {
 } satisfies Config
 ```
 
-If validation against the static hierarchy is needed at route-match time, use a route function, but keep it lightweight. Vike executes route functions during navigation, so do not import heavy map rendering code there.
-
-```ts
-// pages/(map)/location/+route.ts
-import { resolveRoute } from 'vike/routing'
-import type { PageContext } from 'vike/types'
-import { getAllMarkers } from '@/data/map-resolver'
-
-export function route(pageContext: PageContext) {
-  const result = resolveRoute('/location/@id', pageContext.urlPathname)
-
-  if (!result.match) return false
-
-  const point = getAllMarkers().find((marker) => marker.id === result.routeParams.id)
-
-  if (!point) return false
-
-  return {
-    routeParams: result.routeParams,
-  }
-}
-```
+Prefer validating the routed marker in `+data.ts` by loading `getMarkerById(routeParams.id)` and checking that the same `id` exists in `overview.json`. Keep route functions lightweight and avoid importing dataset loaders there unless route-time validation becomes explicitly necessary.
 
 Do not import MapLibre, React map components, or clustering libraries inside route functions.
 
@@ -787,31 +773,38 @@ Example:
 // pages/(map)/location/@id/+data.ts
 import type { PageContext } from 'vike/types'
 import { normalizeLocale } from '@/data/i18n'
+import { getCategories, getMarkerById, getOverviewMarkers } from '@/data/map-dataset'
 import {
-  findLocalizedMarkerByRouteParams,
-  getAllMarkers,
   getLocalizedCategories,
   getLocalizedGroupedMarkers,
-  getLocalizedMarkers,
+  getLocalizedMarker,
+  getLocalizedMarkerCategories,
+  getLocalizedOverviewMarkers,
   getMarkerBounds,
 } from '@/data/map-resolver'
 
-export function data(pageContext: PageContext) {
+export async function data(pageContext: PageContext) {
   const locale = normalizeLocale(pageContext.locale)
-  const selectedMarker = findLocalizedMarkerByRouteParams(pageContext.routeParams, locale)
+  const markerId = typeof pageContext.routeParams.id === 'string' ? pageContext.routeParams.id : null
+  const [categories, overviewMarkers, rawSelectedMarker] = await Promise.all([
+    getCategories(),
+    getOverviewMarkers(),
+    getMarkerById(markerId),
+  ])
 
-  if (!selectedMarker) {
+  if (!rawSelectedMarker || !overviewMarkers.some((marker) => marker.id === rawSelectedMarker.id)) {
     throw new Error('Map point not found')
   }
 
-  const rawMarkers = getAllMarkers()
+  const selectedMarker = getLocalizedMarker(rawSelectedMarker, locale)
 
   return {
-    categories: getLocalizedCategories(locale),
-    groupedMarkers: getLocalizedGroupedMarkers(locale),
+    categories: getLocalizedCategories(categories, locale),
+    groupedMarkers: getLocalizedGroupedMarkers(categories, overviewMarkers, locale),
     selectedMarker,
-    markers: getLocalizedMarkers(locale),
-    markerBounds: getMarkerBounds(rawMarkers),
+    selectedMarkerCategories: getLocalizedMarkerCategories(rawSelectedMarker, categories, locale),
+    markers: getLocalizedOverviewMarkers(overviewMarkers, locale),
+    markerBounds: getMarkerBounds(overviewMarkers),
     mapView: {
       mode: 'detail',
       center: selectedMarker.coordinates,
@@ -827,27 +820,28 @@ On the homepage:
 // pages/(map)/map/+data.ts
 import type { PageContext } from 'vike/types'
 import { normalizeLocale } from '@/data/i18n'
+import { getCategories, getOverviewMarkers } from '@/data/map-dataset'
 import {
-  getAllMarkers,
   getLocalizedCategories,
   getLocalizedGroupedMarkers,
-  getLocalizedMarkers,
+  getLocalizedOverviewMarkers,
   getMarkerBounds,
 } from '@/data/map-resolver'
 
-export function data(pageContext: PageContext) {
+export async function data(pageContext: PageContext) {
   const locale = normalizeLocale(pageContext.locale)
-  const rawMarkers = getAllMarkers()
+  const [categories, overviewMarkers] = await Promise.all([getCategories(), getOverviewMarkers()])
 
   return {
-    categories: getLocalizedCategories(locale),
-    groupedMarkers: getLocalizedGroupedMarkers(locale),
+    categories: getLocalizedCategories(categories, locale),
+    groupedMarkers: getLocalizedGroupedMarkers(categories, overviewMarkers, locale),
     selectedMarker: null,
-    markers: getLocalizedMarkers(locale),
-    markerBounds: getMarkerBounds(rawMarkers),
+    selectedMarkerCategories: [],
+    markers: getLocalizedOverviewMarkers(overviewMarkers, locale),
+    markerBounds: getMarkerBounds(overviewMarkers),
     mapView: {
       mode: 'overview',
-      bounds: getMarkerBounds(rawMarkers),
+      bounds: getMarkerBounds(overviewMarkers),
     },
   }
 }
@@ -1023,10 +1017,12 @@ If a route references an unknown category or marker slug:
 Prefer stable helper functions:
 
 ```ts
-findLocalizedMarkerByRouteParams(routeParams, locale)
-getAllMarkers()
-getLocalizedCategories(locale)
-getLocalizedMarkers(locale)
+getCategories()
+getOverviewMarkers()
+getMarkerById(id)
+getLocalizedCategories(categories, locale)
+getLocalizedOverviewMarkers(markers, locale)
+getLocalizedMarker(marker, locale)
 getMarkerRoute(marker)
 getMarkerHref(marker, locale)
 getMarkerBounds(markers)

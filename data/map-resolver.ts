@@ -1,6 +1,6 @@
 import type { MapBounds } from '@/components/map/map-types'
 import { getLocalizedAppHref } from '@/data/app-url'
-import { MAP_CATEGORIES, MAP_MARKERS, type MapCategory, type MapCategoryId, type MapMarker } from '@/data/constants'
+import type { MapCategory, MapCategoryId, MapMarker, OverviewMapMarker } from '@/data/map-data-types'
 import { type Locale, pickLocaleString } from '@/data/i18n'
 
 export interface LocalizedMapCategory {
@@ -9,42 +9,28 @@ export interface LocalizedMapCategory {
   title: string
 }
 
-export interface LocalizedMapMarker {
+export interface LocalizedOverviewMapMarker {
   categoryIds: readonly [MapCategoryId, ...MapCategoryId[]]
-  coordinates: MapMarker['coordinates']
-  description: string
+  coordinates: OverviewMapMarker['coordinates']
   detailZoom: number
   id: string
+  primaryCategoryId: MapCategoryId
   title: string
 }
 
-export interface LocalizedGroupedMapMarkers {
+export interface LocalizedMapMarker extends LocalizedOverviewMapMarker {
+  description: string
+}
+
+export interface LocalizedGroupedOverviewMapMarkers {
   category: LocalizedMapCategory
-  markers: LocalizedMapMarker[]
+  markers: LocalizedOverviewMapMarker[]
 }
 
-export interface LocationRouteParams {
-  id?: string
-}
+export const getMarkerRoute = (marker: Pick<OverviewMapMarker, 'id'>): `/location/${string}` => `/location/${marker.id}`
 
-export const getAllMarkers = (): MapMarker[] => [...MAP_MARKERS]
-
-export const getMarkerRoute = (marker: Pick<MapMarker, 'id'>): `/location/${string}` => `/location/${marker.id}`
-
-export const getMarkerHref = (marker: Pick<MapMarker, 'id'>, locale?: Locale) =>
+export const getMarkerHref = (marker: Pick<OverviewMapMarker, 'id'>, locale?: Locale) =>
   getLocalizedAppHref(getMarkerRoute(marker), locale)
-
-const findMarkerById = (id?: string | null): MapMarker | null => {
-  if (!id) {
-    return null
-  }
-
-  return MAP_MARKERS.find((marker) => marker.id === id) ?? null
-}
-
-const findMarkerByRouteParams = (routeParams: LocationRouteParams): MapMarker | null => {
-  return findMarkerById(routeParams.id)
-}
 
 const getLocalizedCategory = (category: MapCategory, locale: Locale): LocalizedMapCategory => ({
   description: pickLocaleString(category.description, locale),
@@ -52,64 +38,66 @@ const getLocalizedCategory = (category: MapCategory, locale: Locale): LocalizedM
   title: pickLocaleString(category.title, locale),
 })
 
-const getLocalizedMarker = (marker: MapMarker, locale: Locale): LocalizedMapMarker => ({
+const getPrimaryMarkerCategoryId = (marker: Pick<OverviewMapMarker, 'categoryIds' | 'id'>): MapCategoryId => {
+  const primaryCategoryId = marker.categoryIds[0]
+
+  if (!primaryCategoryId) {
+    throw new Error(`Unknown primary category for marker "${marker.id}"`)
+  }
+
+  return primaryCategoryId
+}
+
+const getLocalizedOverviewMarker = (marker: OverviewMapMarker, locale: Locale): LocalizedOverviewMapMarker => ({
   categoryIds: marker.categoryIds,
   coordinates: marker.coordinates,
-  description: pickLocaleString(marker.description, locale),
   detailZoom: marker.detailZoom,
   id: marker.id,
+  primaryCategoryId: getPrimaryMarkerCategoryId(marker),
   title: pickLocaleString(marker.title, locale),
 })
 
-export const getLocalizedCategories = (locale: Locale): LocalizedMapCategory[] => {
-  return MAP_CATEGORIES.map((category) => getLocalizedCategory(category, locale))
+export const getLocalizedMarker = (marker: MapMarker, locale: Locale): LocalizedMapMarker => ({
+  ...getLocalizedOverviewMarker(marker, locale),
+  description: pickLocaleString(marker.description, locale),
+})
+
+export const getLocalizedCategories = (categories: readonly MapCategory[], locale: Locale): LocalizedMapCategory[] => {
+  return categories.map((category) => getLocalizedCategory(category, locale))
 }
 
-export const getLocalizedMarkers = (locale: Locale): LocalizedMapMarker[] => {
-  return MAP_MARKERS.map((marker) => getLocalizedMarker(marker, locale))
-}
-
-export const findLocalizedMarkerByRouteParams = (
-  routeParams: LocationRouteParams,
+export const getLocalizedOverviewMarkers = (
+  markers: readonly OverviewMapMarker[],
   locale: Locale,
-): LocalizedMapMarker | null => {
-  const marker = findMarkerByRouteParams(routeParams)
-
-  return marker ? getLocalizedMarker(marker, locale) : null
-}
-
-const getMarkersByCategory = (categoryId: MapCategoryId): MapMarker[] => {
-  return MAP_MARKERS.filter((marker) => (marker.categoryIds as readonly MapCategoryId[]).includes(categoryId))
+): LocalizedOverviewMapMarker[] => {
+  return markers.map((marker) => getLocalizedOverviewMarker(marker, locale))
 }
 
 export const getLocalizedMarkerCategories = (
-  marker: Pick<MapMarker, 'categoryIds'>,
+  marker: Pick<OverviewMapMarker, 'categoryIds'>,
+  categories: readonly MapCategory[],
   locale: Locale,
 ): LocalizedMapCategory[] => {
   return marker.categoryIds
-    .map((categoryId) => MAP_CATEGORIES.find((category) => category.id === categoryId))
+    .map((categoryId) => categories.find((category) => category.id === categoryId))
     .filter((category): category is MapCategory => Boolean(category))
     .map((category) => getLocalizedCategory(category, locale))
 }
 
-export const getPrimaryMarkerCategory = (marker: Pick<MapMarker, 'categoryIds' | 'id'>): MapCategory => {
-  const primaryCategory = MAP_CATEGORIES.find((category) => category.id === marker.categoryIds[0])
-
-  if (!primaryCategory) {
-    throw new Error(`Unknown primary category for marker "${marker.id}"`)
-  }
-
-  return primaryCategory
-}
-
-export const getLocalizedGroupedMarkers = (locale: Locale): LocalizedGroupedMapMarkers[] => {
-  return MAP_CATEGORIES.map((category) => ({
+export const getLocalizedGroupedMarkers = (
+  categories: readonly MapCategory[],
+  markers: readonly OverviewMapMarker[],
+  locale: Locale,
+): LocalizedGroupedOverviewMapMarkers[] => {
+  return categories.map((category) => ({
     category: getLocalizedCategory(category, locale),
-    markers: getMarkersByCategory(category.id).map((marker) => getLocalizedMarker(marker, locale)),
+    markers: markers
+      .filter((marker) => (marker.categoryIds as readonly MapCategoryId[]).includes(category.id))
+      .map((marker) => getLocalizedOverviewMarker(marker, locale)),
   }))
 }
 
-export const getMarkerBounds = (markers: readonly Pick<MapMarker, 'coordinates'>[]): MapBounds => {
+export const getMarkerBounds = (markers: readonly Pick<OverviewMapMarker, 'coordinates'>[]): MapBounds => {
   if (markers.length === 0) {
     throw new Error('Cannot calculate marker bounds without markers')
   }

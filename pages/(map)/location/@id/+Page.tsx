@@ -4,10 +4,10 @@ import { usePageContext } from 'vike-react/usePageContext'
 import { getLocalizedAppHref } from '@/data/app-url'
 import { normalizeLocale, t } from '@/data/i18n'
 import type { MapPageData } from '@/data/map-page-data'
-import { getLocalizedMarkerCategories, getMarkerHref } from '@/data/map-resolver'
+import { getMarkerHref } from '@/data/map-resolver'
 
 const LocationPage = () => {
-  const { markers, selectedMarker } = useData<MapPageData>()
+  const { markers, selectedMarker, selectedMarkerCategories } = useData<MapPageData>()
   const pageContext = usePageContext()
   const locale = normalizeLocale(pageContext.locale)
 
@@ -15,14 +15,13 @@ const LocationPage = () => {
     return null
   }
 
-  const categories = getLocalizedMarkerCategories(selectedMarker, locale)
   const nextMarker = markers[(markers.findIndex((marker) => marker.id === selectedMarker.id) + 1) % markers.length]
 
   return (
     <article className="flex flex-col gap-4 py-6">
       <p className="text-base-muted text-sm">{t('chemnitzLocation', locale)}</p>
       <div className="flex flex-wrap items-center gap-2">
-        {categories.map((category) => (
+        {selectedMarkerCategories.map((category) => (
           <span className="badge badge-outline" key={category.id}>
             {category.title}
           </span>

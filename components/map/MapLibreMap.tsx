@@ -17,14 +17,14 @@ import {
 } from '@/components/map/map-types'
 import { getCurrentThemePreference } from '@/components/themeAppearance'
 import type { Locale } from '@/data/i18n'
-import { getMarkerHref, getPrimaryMarkerCategory } from '@/data/map-resolver'
-import type { LocalizedMapCategory, LocalizedMapMarker } from '@/data/map-resolver'
+import type { MapCategoryId } from '@/data/map-data-types'
+import { getMarkerHref } from '@/data/map-resolver'
+import type { LocalizedMapMarker, LocalizedOverviewMapMarker } from '@/data/map-resolver'
 
 interface MapLibreMapProps {
   cameraIntent: MapCameraIntent
-  categories: LocalizedMapCategory[]
   locale: Locale
-  markers: LocalizedMapMarker[]
+  markers: LocalizedOverviewMapMarker[]
   selectedMarker: LocalizedMapMarker | null
 }
 
@@ -52,21 +52,21 @@ const markerColors = {
   mobility: '#0369a1',
   nature: '#15803d',
   workspace: '#0f766e',
-} as const satisfies Record<LocalizedMapCategory['id'], string>
+} as const satisfies Record<MapCategoryId, string>
 
 interface MarkerFeatureProperties {
-  categoryId: LocalizedMapCategory['id']
+  categoryId: MapCategoryId
   color: string
   id: string
   selected: boolean
 }
 
 const getMarkerFeatureCollection = (
-  markers: LocalizedMapMarker[],
+  markers: LocalizedOverviewMapMarker[],
   selectedMarker: LocalizedMapMarker | null,
 ): GeoJSON.FeatureCollection<GeoJSON.Point, MarkerFeatureProperties> => ({
   features: markers.map((marker) => {
-    const categoryId = getPrimaryMarkerCategory(marker).id
+    const categoryId = marker.primaryCategoryId
 
     return {
       geometry: {
