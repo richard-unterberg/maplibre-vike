@@ -4,5 +4,8 @@ allowBuilds:
 ignoredBuiltDependencies:
   - esbuild
   - lefthook
+minimumReleaseAgeExclude:
+  - '@unterberg/vite-beasties-output@0.1.2'
+minimumReleaseAgeStrict: false
 onlyBuiltDependencies:
   - "@biomejs/biome"
