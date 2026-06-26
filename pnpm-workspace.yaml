@@ -6,6 +6,8 @@ ignoredBuiltDependencies:
   - lefthook
 minimumReleaseAgeExclude:
   - '@unterberg/vite-beasties-output@0.1.2'
+  - '@unterberg/vite-beasties-output@0.1.5'
+  - '@unterberg/vite-beasties-output@0.1.6'
 minimumReleaseAgeStrict: false
 onlyBuiltDependencies:
   - "@biomejs/biome"

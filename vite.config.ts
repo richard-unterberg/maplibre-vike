@@ -24,7 +24,22 @@ const base = pagesBasePath ? `${pagesBasePath}/` : '/'
 
 export default defineConfig({
   base,
-  plugins: [vike(), react(), tailwindcss(), viteBeastiesOutput()],
+  plugins: [
+    vike(),
+    react(),
+    tailwindcss(),
+    viteBeastiesOutput({
+      outputDirectory: 'dist/client',
+      beastiesOptions: {
+        allowRules: [
+          /data-theme=.*dark/,
+          /data-theme=.*light/,
+          /^:root:has\(input\.theme-controller/,
+          /^:where\(:root\)$/,
+        ],
+      },
+    }),
+  ],
   resolve: {
     alias: pathAliases,
   },

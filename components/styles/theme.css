@@ -1,3 +1,5 @@
+/* beasties:include start */
+
 @custom-variant dark (&:where(
   [data-theme='maplibre-vike-dark'],
   [data-theme='maplibre-vike-dark'] *
@@ -119,3 +121,5 @@
     'Monaco', 'SF Mono', SF Mono, SF Mono Regular, Consolas, 'Liberation Mono',
     Menlo, Courier, monospace;
 }
+
+/* beasties:include end */
